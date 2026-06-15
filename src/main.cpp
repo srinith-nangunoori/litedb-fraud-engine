@@ -1,5 +1,8 @@
 #include <iostream>
 #include <string>
+#include <vector>
+#include <sstream>
+#include <unordered_map>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -7,70 +10,105 @@
 
 const int PORT = 6379;
 
+// --- THE CORE DATABASE ---
+// This Hash Map is our actual "Database". It lives entirely in RAM.
+std::unordered_map<std::string, std::string> database;
+
+// --- THE PARSER ---
+// Takes a raw network string like "SET name Rahul\n" and turns it into ["SET", "name", "Rahul"]
+std::vector<std::string> parseInput(const std::string& input) {
+    std::vector<std::string> tokens;
+    std::stringstream ss(input);
+    std::string word;
+    
+    // ss >> word automatically splits by spaces and ignores newlines (\n)
+    while (ss >> word) {
+        tokens.push_back(word);
+    }
+    return tokens;
+}
+
 int main() {
-    // 1. Create a socket
-    // AF_INET = IPv4 protocol
-    // SOCK_STREAM = TCP (reliable connection-oriented)
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) {
-        std::cerr << "Failed to create socket. Error: " << strerror(errno) << std::endl;
-        return 1;
-    }
-
-    // Set socket options to reuse the address (prevents "Address already in use" errors on restart)
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        std::cerr << "setsockopt failed" << std::endl;
-        close(server_fd);
-        return 1;
-    }
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    // 2. Bind the socket to IP and Port
     sockaddr_in address;
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY; // Listen on all network interfaces
-    address.sin_port = htons(PORT);       // Convert port to network byte order (Big Endian)
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        std::cerr << "Bind failed. Port " << PORT << " might be in use." << std::endl;
-        close(server_fd);
-        return 1;
-    }
-
-    // 3. Listen for incoming connections (max backlog queue size of 5)
-    if (listen(server_fd, 5) < 0) {
-        std::cerr << "Listen failed." << std::endl;
-        close(server_fd);
-        return 1;
-    }
+    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
+    listen(server_fd, 5);
 
     std::cout << "[INFO] LiteDB Server started on port " << PORT << std::endl;
-    std::cout << "[INFO] Waiting for incoming connections..." << std::endl;
 
-    // 4. Accept a connection (Infinite loop to keep server running)
     while (true) {
         sockaddr_in client_address;
         socklen_t client_addr_len = sizeof(client_address);
         
-        // This call blocks (waits) until a client connects
         int client_fd = accept(server_fd, (struct sockaddr*)&client_address, &client_addr_len);
-        if (client_fd < 0) {
-            std::cerr << "Failed to accept connection." << std::endl;
-            continue;
-        }
+        if (client_fd < 0) continue;
 
         std::cout << "[INFO] Client connected!" << std::endl;
 
-        // Send a simple greeting back to the client
-        std::string greeting = "+OK Welcome to LiteDB\r\n";
-        send(client_fd, greeting.c_str(), greeting.length(), 0);
+        // A buffer to hold the raw bytes coming from the network
+        char buffer[1024] = {0};
 
-        // Close connection with the client for now
+        // --- THE COMMAND LOOP ---
+        // Keep reading from this client until they disconnect
+        while (true) {
+            memset(buffer, 0, sizeof(buffer)); // Clear buffer before reading
+            
+            // Read data from the socket
+            ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
+            
+            // If bytes_read is 0 or less, the client closed the connection
+            if (bytes_read <= 0) {
+                std::cout << "[INFO] Client disconnected." << std::endl;
+                break;
+            }
+
+            std::string raw_input(buffer);
+            std::vector<std::string> command = parseInput(raw_input);
+
+            // If the user just hit Enter without typing anything
+            if (command.empty()) continue; 
+
+            std::string action = command[0];
+            std::string response = "";
+
+            // --- THE EXECUTION ENGINE ---
+            if (action == "SET" && command.size() >= 3) {
+                std::string key = command[1];
+                std::string value = command[2];
+                database[key] = value; // Saving to RAM!
+                response = "+OK\r\n";
+            } 
+            else if (action == "GET" && command.size() >= 2) {
+                std::string key = command[1];
+                if (database.find(key) != database.end()) {
+                    response = "\"" + database[key] + "\"\r\n"; // Found it
+                } else {
+                    response = "(nil)\r\n"; // Key doesn't exist
+                }
+            } 
+            else if (action == "DEL" && command.size() >= 2) {
+                std::string key = command[1];
+                database.erase(key);
+                response = "+OK\r\n";
+            } 
+            else {
+                response = "-ERROR Unknown command or incorrect arguments\r\n";
+            }
+
+            // Send the response back over the network
+            send(client_fd, response.c_str(), response.length(), 0);
+        }
+
         close(client_fd);
-        std::cout << "[INFO] Client disconnected." << std::endl;
     }
 
-    // Close the server socket
     close(server_fd);
     return 0;
 }
