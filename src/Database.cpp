@@ -48,12 +48,19 @@ void Database::loadFromLog() {
 }
 
 std::string Database::set(const std::string& key, const std::string& value) {
+    // 1. Lock the database so no other thread can enter
+    std::lock_guard<std::mutex> lock(db_mutex); 
+    
+    // 2. Safely modify the map and write to the file
     database[key] = value;
     appendToLog("SET", key, value);
+    
+    // 3. The lock is automatically released here when the function returns
     return "+OK\r\n";
 }
 
 std::string Database::get(const std::string& key) {
+    std::lock_guard<std::mutex> lock(db_mutex); 
     if (database.find(key) != database.end()) {
         return database[key] + "\r\n";
     }
@@ -61,6 +68,7 @@ std::string Database::get(const std::string& key) {
 }
 
 std::string Database::del(const std::string& key) {
+    std::lock_guard<std::mutex> lock(db_mutex); 
     if (database.find(key) != database.end()) {
         database.erase(key);
         appendToLog("DEL", key, "");
