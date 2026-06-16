@@ -1,0 +1,16 @@
+# OS files
+.DS_Store
+
+# Build artifacts
+builds/
+*.o
+*.out
+litedb_server
+
+# IDE configurations
+.vscode/
+.idea/
+
+# Database data files
+*.aof
+
