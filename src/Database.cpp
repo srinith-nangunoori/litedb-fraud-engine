@@ -9,7 +9,7 @@ Database::Database() {
     loadFromLog();
 }
 
-// Append logs to disk
+// Append logs to disk (WAL)
 void Database::appendToLog(const std::string& action, const std::string& key, const std::string& value) {
     std::ofstream file("litedb.aof", std::ios::app);
     if (!file.is_open()) {
@@ -25,7 +25,7 @@ void Database::appendToLog(const std::string& action, const std::string& key, co
     file.close();
 }
 
-// Replay logs on startup
+// Replay logs on startup (The Replay Engine)
 void Database::loadFromLog() {
     std::ifstream file("litedb.aof", std::ios::in);
     if (!file.is_open()) {
@@ -38,39 +38,80 @@ void Database::loadFromLog() {
         std::vector<std::string> tokens = parseInput(line);
         if (tokens.empty()) continue;
 
+        // Use our internal helpers so we don't trigger duplicate logging!
         if (tokens[0] == "SET" && tokens.size() >= 3) {
-            database[tokens[1]] = tokens[2];
+            setInternal(tokens[1], tokens[2]);
         } else if (tokens[0] == "DEL" && tokens.size() >= 2) {
-            database.erase(tokens[1]);
+            delInternal(tokens[1]);
         }
     }
     file.close();
+    std::cout << "[INFO] Database state reloaded successfully. Total items: " << database.size() << std::endl;
 }
 
+// Private LRU set helper
+void Database::setInternal(const std::string& key, const std::string& value) {
+    auto it = database.find(key);
+    if (it != database.end()) {
+        // Key exists: Update value and move to front (Most Recently Used)
+        auto list_iterator = it->second;
+        list_iterator->second = value;
+        lru_list.splice(lru_list.begin(), lru_list, list_iterator);
+    } else {
+        // Key does not exist: Check capacity
+        if (database.size() >= MAX_CAPACITY) {
+            // Evict Least Recently Used (back of the list)
+            std::string oldest_key = lru_list.back().first;
+            database.erase(oldest_key);
+            lru_list.pop_back();
+            appendToLog("DEL", oldest_key, ""); // Keep log in sync
+            std::cout << "[INFO] Cache Full! Evicted oldest key: " << oldest_key << std::endl;
+        }
+        // Insert new item at the front
+        lru_list.push_front({key, value});
+        database[key] = lru_list.begin();
+    }
+}
+
+// Private LRU delete helper
+void Database::delInternal(const std::string& key) {
+    auto it = database.find(key);
+    if (it != database.end()) {
+        auto list_iterator = it->second;
+        lru_list.erase(list_iterator);
+        database.erase(key);
+    }
+}
+
+// Public API: SET
 std::string Database::set(const std::string& key, const std::string& value) {
-    // 1. Lock the database so no other thread can enter
     std::unique_lock<std::shared_mutex> lock(db_mutex); 
-    
-    // 2. Safely modify the map and write to the file
-    database[key] = value;
+    setInternal(key, value);
     appendToLog("SET", key, value);
-    
-    // 3. The lock is automatically released here when the function returns
     return "+OK\r\n";
 }
 
+// Public API: GET
 std::string Database::get(const std::string& key) {
-    std::shared_lock<std::shared_mutex> lock(db_mutex); 
-    if (database.find(key) != database.end()) {
-        return database[key] + "\r\n";
+    std::shared_lock<std::shared_mutex> lock(db_mutex);
+
+    auto it = database.find(key);
+    if (it == database.end()) {
+        return "(nil)\r\n";
     }
-    return "(nil)\r\n";
+
+    auto list_iterator = it->second;
+    // Move to front (Most Recently Used)
+    lru_list.splice(lru_list.begin(), lru_list, list_iterator);
+    return list_iterator->second + "\r\n";
 }
 
+// Public API: DEL
 std::string Database::del(const std::string& key) {
     std::unique_lock<std::shared_mutex> lock(db_mutex); 
-    if (database.find(key) != database.end()) {
-        database.erase(key);
+    auto it = database.find(key);
+    if (it != database.end()) {
+        delInternal(key);
         appendToLog("DEL", key, "");
         return "+OK\r\n";
     }
