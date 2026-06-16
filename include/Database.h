@@ -4,14 +4,14 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <mutex>
+#include <shared_mutex>
 
 class Database {
 private:
     std::unordered_map<std::string, std::string> database;
     void appendToLog(const std::string& action, const std::string& key, const std::string& value);
     void loadFromLog();
-    std::mutex db_mutex;
+    std::shared_mutex db_mutex;
 public:
     Database(); // Constructor
     std::string set(const std::string& key, const std::string& value);
