@@ -3,29 +3,74 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <shared_mutex>
 #include <list>
+#include <deque>
 #include <utility>
+#include "HashUtils.h"
+#include "GeoUtils.h"
 
-class Database {
+// The Bloom Filter Class
+class BloomFilter {
 private:
-    std::list<std::pair<std::string, std::string>> lru_list;
-    std::unordered_map<std::string, std::list<std::pair<std::string, std::string>>::iterator> database;
-    void appendToLog(const std::string& action, const std::string& key, const std::string& value);
-    void loadFromLog();
-    std::shared_mutex db_mutex;
-    const size_t MAX_CAPACITY = 5;
-    void setInternal(const std::string& key, const std::string& value);
-    void delInternal(const std::string& key);
+    std::vector<bool> bit_array;
+    size_t num_bits;
+    size_t num_hashes;
+
 public:
-    Database(); // Constructor
-    std::string set(const std::string& key, const std::string& value);
-    std::string get(const std::string& key);
-    std::string del(const std::string& key);
+    BloomFilter(size_t expected_items = 100000, double false_positive_rate = 0.01);
+    void add(const std::string& item);
+    bool mightContain(const std::string& item);
 };
 
-// Helper function to parse inputs (declared here so both database and main can see it)
+// Custom data type for a Credit Card Swipe
+struct Transaction {
+    std::string merchant_id;
+    double lat;
+    double lon;
+    uint64_t timestamp;
+};
+
+// The Main Database Engine
+class Database {
+private:
+    const size_t MAX_CAPACITY = 100000;
+    
+    // Security Modules
+    BloomFilter blacklist;
+    std::unordered_set<std::string> allowlist;
+
+    // Velocity LRU Cache: UserID -> Queue of last 5 Transactions
+    std::list<std::pair<std::string, std::deque<Transaction>>> lru_list;
+    std::unordered_map<std::string, decltype(lru_list)::iterator> user_history;
+
+    // --- The Graph Engine Memory ---
+    std::unordered_map<std::string, std::unordered_set<std::string>> merchant_to_users;
+    std::unordered_map<std::string, int> compromised_cards;
+
+    std::shared_mutex db_mutex;
+
+    // Helper functions
+    void appendToLog(const std::string& command_str);
+    void loadFromLog();
+
+public:
+    Database(); 
+    
+    // Admin Commands
+    std::string blacklistMerchant(const std::string& merchant);
+    std::string whitelistMerchant(const std::string& merchant);
+
+    // The Core Business Logic Command (Notice the is_replay flag!)
+    std::string processSwipe(const std::string& user_id, const std::string& merchant_id, double lat, double lon, uint64_t timestamp, bool is_replay = false);
+
+    // The Background Graph Analyzer
+    void runGraphAnalysis();
+};
+
+// Helper function to parse inputs
 std::vector<std::string> parseInput(const std::string& input);
 
 #endif

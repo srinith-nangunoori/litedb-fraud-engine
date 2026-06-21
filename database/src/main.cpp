@@ -24,21 +24,41 @@ void handleClient(int client_fd , Database& db){
         std::string action = command[0];
         std::string response = "";
 
-        if (action == "SET" && command.size() >= 3) {
-            response = db.set(command[1], command[2]);
+        
+        // --- THE EXECUTION ENGINE ---
+        if (action == "SWIPE" && command.size() >= 6) {
+            // Command: SWIPE user_id merchant_id lat lon timestamp
+            std::string user = command[1];
+            std::string merch = command[2];
+            double lat = std::stod(command[3]);
+            double lon = std::stod(command[4]);
+            uint64_t ts = std::stoull(command[5]);
+            
+            response = db.processSwipe(user, merch, lat, lon, ts);
         } 
-        else if (action == "GET" && command.size() >= 2) {
-            response = db.get(command[1]);
-        } 
-        else if (action == "DEL" && command.size() >= 2) {
-            response = db.del(command[1]);
-        } 
+        else if (action == "BLACKLIST" && command.size() >= 2) {
+            response = db.blacklistMerchant(command[1]);
+        }
+        else if (action == "WHITELIST" && command.size() >= 2) {
+            response = db.whitelistMerchant(command[1]);
+        }
         else {
             response = "-ERROR Unknown command or incorrect arguments\r\n";
         }
         send(client_fd, response.c_str(), response.length(), 0);
     }
     close(client_fd);
+}
+
+// Infinite loop that runs alongside our server
+void graphAnalyzerThread(Database& db) {
+    while (true) {
+        // Sleep for 10 seconds so we don't burn the CPU
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+        
+        // Wake up and run the heavy graph math
+        db.runGraphAnalysis();
+    }
 }
 
 const int PORT = 6379;
@@ -59,6 +79,11 @@ int main() {
     listen(server_fd, 5);
 
     std::cout << "[INFO] LiteDB Server started on port " << PORT << std::endl;
+
+    // --- SPAWN BACKGROUND AI THREAD ---
+    std::thread ai_thread(graphAnalyzerThread, std::ref(db));
+    ai_thread.detach();
+    // ----------------------------------
 
     while (true) {
         sockaddr_in client_address;
