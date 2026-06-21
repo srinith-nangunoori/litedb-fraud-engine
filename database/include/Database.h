@@ -56,6 +56,8 @@ private:
     void appendToLog(const std::string& command_str);
     void loadFromLog();
 
+    std::unordered_set<int> active_sockets;
+
 public:
     Database(); 
     
@@ -68,6 +70,9 @@ public:
 
     // The Background Graph Analyzer
     void runGraphAnalysis();
+
+    void registerSocket(int fd);
+    void deregisterSocket(int fd);
 };
 
 // Helper function to parse inputs

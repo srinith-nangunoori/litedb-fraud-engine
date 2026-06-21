@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <sys/socket.h>
 
 // --- ADVANCED BLOOM FILTER IMPLEMENTATION ---
 BloomFilter::BloomFilter(size_t expected_items, double false_positive_rate) {
@@ -89,6 +90,12 @@ std::string Database::whitelistMerchant(const std::string& merchant) {
 // --- THE CORE FRAUD LOGIC ---
 std::string Database::processSwipe(const std::string& user_id, const std::string& merchant_id, double lat, double lon, uint64_t timestamp, bool is_replay) {
     std::unique_lock<std::shared_mutex> lock(db_mutex);
+
+    // --- THE SECURITY FREEZE ---
+    // If this card is already flagged as compromised, block all future swipes immediately!
+    if (compromised_cards[user_id] > 0) {
+        return "-DECLINED Card Frozen\r\n";
+    }
 
     // 1. SCAM MERCHANT CHECK (Fast Path)
     if (allowlist.find(merchant_id) == allowlist.end()) {
@@ -179,11 +186,19 @@ void Database::runGraphAnalysis() {
             }
         }
 
-        // If >= 2 compromised cards linked to merchant -> Blacklist
         if (compromised_user_count >= 2) {
             blacklist.add(merchant_id);
             appendToLog("BLACKLIST " + merchant_id); 
+            
             std::cout << "\n[ALERT] GRAPH ENGINE DETECTED FRAUD RING! Auto-Blacklisted: " << merchant_id << "\n> ";
+            
+            // --- THE BROADCAST LOOP ---
+            std::string alert_msg = "[ALERT] Fraud Ring Detected: " + merchant_id + "\r\n";
+            for (int fd : active_sockets) {
+                send(fd, alert_msg.c_str(), alert_msg.length(), 0);
+            }
+            // ---------------------------
+
             new_fraud_rings_found++;
         }
     }
@@ -191,4 +206,14 @@ void Database::runGraphAnalysis() {
     if (new_fraud_rings_found > 0) {
         std::cout << "[INFO] Graph Analysis complete. " << new_fraud_rings_found << " new syndicates shut down.\n> ";
     }
+}
+
+void Database::registerSocket(int fd) {
+    std::unique_lock<std::shared_mutex> lock(db_mutex);
+    active_sockets.insert(fd);
+}
+
+void Database::deregisterSocket(int fd) {
+    std::unique_lock<std::shared_mutex> lock(db_mutex);
+    active_sockets.erase(fd);
 }

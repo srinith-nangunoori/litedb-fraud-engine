@@ -47,6 +47,8 @@ void handleClient(int client_fd , Database& db){
         }
         send(client_fd, response.c_str(), response.length(), 0);
     }
+    std::cout << "[INFO] Client disconnected." << std::endl;
+    db.deregisterSocket(client_fd); // Remove from registry!
     close(client_fd);
 }
 
@@ -93,6 +95,9 @@ int main() {
         if (client_fd < 0) continue;
 
         std::cout << "[INFO] Client connected!" << std::endl;
+        
+        // Register this socket so the database can send background alerts to it!
+        db.registerSocket(client_fd);
 
         // Spawn a new thread for this client. 
         // We use std::ref(db) so all threads share the SAME database in memory!
