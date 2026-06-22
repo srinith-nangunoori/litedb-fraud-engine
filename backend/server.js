@@ -48,11 +48,16 @@ function sendDbCommand(command) {
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-function broadcastToUI(message) {
-    console.log(`[WS BROADCAST] Sending Alert to UI: ${message}`);
+function broadcastToUI(payload) {
     wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({ type: 'ALERT', data: message }));
+            // If the payload is a string (like a C++ Alert), wrap it
+            if (typeof payload === 'string') {
+                client.send(JSON.stringify({ type: 'ALERT', data: payload }));
+            } else {
+                // If it's a transaction object, send it as TXN
+                client.send(JSON.stringify({ type: 'TXN', data: payload }));
+            }
         }
     });
 }
@@ -81,9 +86,14 @@ app.post('/api/swipe', async (req, res) => {
     console.log(`[API] Transaction: ${userId} -> ${merchantId} | Result: ${dbResponse}`);
 
     if (dbResponse.startsWith('+APPROVED')) {
+        // Broadcast the good transaction to the UI!
+        broadcastToUI({ status: 'APPROVED', userId, merchantId });
         return res.json({ status: 'APPROVED' });
     } else {
-        return res.json({ status: 'DECLINED', reason: dbResponse.substring(1) });
+        // Broadcast the bad transaction to the UI!
+        const reason = dbResponse.substring(1);
+        broadcastToUI({ status: 'DECLINED', userId, merchantId, reason });
+        return res.json({ status: 'DECLINED', reason });
     }
 });
 
