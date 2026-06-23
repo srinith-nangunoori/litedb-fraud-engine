@@ -42,6 +42,12 @@ void handleClient(int client_fd , Database& db){
         else if (action == "WHITELIST" && command.size() >= 2) {
             response = db.whitelistMerchant(command[1]);
         }
+        else if (action == "GET_HISTORY" && command.size() >= 2) {
+            response = db.getHistory(command[1]);
+        }
+        else if (action == "GET_SYNDICATE" && command.size() >= 2) {
+            response = db.getSyndicate(command[1]);
+        }
         else {
             response = "-ERROR Unknown command or incorrect arguments\r\n";
         }

@@ -87,30 +87,44 @@ std::string Database::whitelistMerchant(const std::string& merchant) {
     return "+OK Merchant Whitelisted\r\n";
 }
 
-// --- THE CORE FRAUD LOGIC ---
+// --- THE CORE FRAUD LOGIC (With Granular Micro-Profiling) ---
 std::string Database::processSwipe(const std::string& user_id, const std::string& merchant_id, double lat, double lon, uint64_t timestamp, bool is_replay) {
+    // Start absolute timer
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    // 1. MEASURE LOCK TIME
     std::unique_lock<std::shared_mutex> lock(db_mutex);
+    auto after_lock = std::chrono::high_resolution_clock::now();
+    uint64_t t_lock = std::chrono::duration_cast<std::chrono::microseconds>(after_lock - start_time).count();
 
     // --- THE SECURITY FREEZE ---
-    // If this card is already flagged as compromised, block all future swipes immediately!
     if (compromised_cards[user_id] > 0) {
-        return "-DECLINED Card Frozen\r\n";
+        auto end_time = std::chrono::high_resolution_clock::now();
+        uint64_t t_total = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+        return "-DECLINED Card Frozen | T_TOTAL:" + std::to_string(t_total) + "us | T_LOCK:" + std::to_string(t_lock) + "us\r\n";
     }
 
-    // 1. SCAM MERCHANT CHECK (Fast Path)
+    // 2. MEASURE BLOOM FILTER TIME
+    auto before_bloom = std::chrono::high_resolution_clock::now();
     if (allowlist.find(merchant_id) == allowlist.end()) {
         if (blacklist.mightContain(merchant_id)) {
-            return "-DECLINED Scam Merchant Detected\r\n";
+            auto end_time = std::chrono::high_resolution_clock::now();
+            uint64_t t_bloom = std::chrono::duration_cast<std::chrono::microseconds>(end_time - before_bloom).count();
+            uint64_t t_total = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+            return "-DECLINED Scam Merchant Detected | T_TOTAL:" + std::to_string(t_total) + "us | T_LOCK:" + std::to_string(t_lock) + "us | T_BLOOM:" + std::to_string(t_bloom) + "us\r\n";
         }
     }
+    auto after_bloom = std::chrono::high_resolution_clock::now();
+    uint64_t t_bloom = std::chrono::duration_cast<std::chrono::microseconds>(after_bloom - before_bloom).count();
 
-    // 2. VELOCITY FRAUD CHECK
+    // 3. MEASURE VELOCITY MATH TIME
+    auto before_velocity = std::chrono::high_resolution_clock::now();
+    uint64_t t_velocity = 0;
     auto it = user_history.find(user_id);
     if (it != user_history.end()) {
         auto list_iterator = it->second;
         const auto& history_queue = list_iterator->second;
 
-        // Get absolute last VALID transaction
         const Transaction& last_txn = history_queue.back();
         double distance_km = calculateDistance(last_txn.lat, last_txn.lon, lat, lon);
         double time_diff_hours = (timestamp - last_txn.timestamp) / 3600.0;
@@ -119,14 +133,16 @@ std::string Database::processSwipe(const std::string& user_id, const std::string
             double speed_kmh = distance_km / time_diff_hours;
             if (speed_kmh > 1000.0) {
                 compromised_cards[user_id]++; 
-                return "-DECLINED Impossible Velocity (" + std::to_string(speed_kmh) + " km/h)\r\n";
+                
+                auto end_time = std::chrono::high_resolution_clock::now();
+                t_velocity = std::chrono::duration_cast<std::chrono::microseconds>(end_time - before_velocity).count();
+                uint64_t t_total = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+                return "-DECLINED Impossible Velocity (" + std::to_string(speed_kmh) + " km/h) | T_TOTAL:" + std::to_string(t_total) + "us | T_LOCK:" + std::to_string(t_lock) + "us | T_BLOOM:" + std::to_string(t_bloom) + "us | T_VELOCITY:" + std::to_string(t_velocity) + "us\r\n";
             }
         }
 
-        // Safe: Move user to front of LRU
         lru_list.splice(lru_list.begin(), lru_list, list_iterator);
     } else {
-        // New user eviction logic
         if (user_history.size() >= MAX_CAPACITY) {
             std::string oldest_user = lru_list.back().first;
             user_history.erase(oldest_user);
@@ -136,24 +152,34 @@ std::string Database::processSwipe(const std::string& user_id, const std::string
         user_history[user_id] = lru_list.begin();
     }
 
-    // 3. UPDATE HISTORY
+    // 4. UPDATE HISTORY & GRAPH
     auto list_iterator = user_history[user_id];
     list_iterator->second.push_back({merchant_id, lat, lon, timestamp});
-    
-    // Keep max 5 transactions
     if (list_iterator->second.size() > 5) {
         list_iterator->second.pop_front();
     }   
-
-    // 4. UPDATE GRAPH EDGE
     merchant_to_users[merchant_id].insert(user_id);
+    auto after_velocity = std::chrono::high_resolution_clock::now();
+    t_velocity = std::chrono::duration_cast<std::chrono::microseconds>(after_velocity - before_velocity).count();
 
-    // 5. WRITE TO DISK (Skip if we are just replaying the log on startup)
+    // 5. MEASURE DISK PERSISTENCE TIME (AOF write)
+    auto before_disk = std::chrono::high_resolution_clock::now();
+    uint64_t t_disk = 0;
     if (!is_replay) {
         appendToLog("SWIPE " + user_id + " " + merchant_id + " " + std::to_string(lat) + " " + std::to_string(lon) + " " + std::to_string(timestamp));
+        auto after_disk = std::chrono::high_resolution_clock::now();
+        t_disk = std::chrono::duration_cast<std::chrono::microseconds>(after_disk - before_disk).count();
     }
 
-    return "+APPROVED\r\n";
+    // Final total calculation
+    auto end_time = std::chrono::high_resolution_clock::now();
+    uint64_t t_total = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+    
+    return "+APPROVED | T_TOTAL:" + std::to_string(t_total) + "us" +
+           " | T_LOCK:" + std::to_string(t_lock) + "us" +
+           " | T_BLOOM:" + std::to_string(t_bloom) + "us" +
+           " | T_VELOCITY:" + std::to_string(t_velocity) + "us" +
+           " | T_DISK:" + std::to_string(t_disk) + "us\r\n";
 }
 
 // Helper parsing function
@@ -216,4 +242,46 @@ void Database::registerSocket(int fd) {
 void Database::deregisterSocket(int fd) {
     std::unique_lock<std::shared_mutex> lock(db_mutex);
     active_sockets.erase(fd);
+}
+// --- DATA RETRIEVAL APIs (FOR THE FRONTEND) ---
+
+std::string Database::getHistory(const std::string& user_id) {
+    std::shared_lock<std::shared_mutex> lock(db_mutex); // Read-only lock!
+    
+    auto it = user_history.find(user_id);
+    if (it == user_history.end()) {
+        return "(nil)\r\n";
+    }
+
+    // Format: "lat,lon,timestamp;lat,lon,timestamp;"
+    std::string result = "+HISTORY ";
+    for (const auto& txn : it->second->second) {
+        result += std::to_string(txn.lat) + "," + std::to_string(txn.lon) + "," + std::to_string(txn.timestamp) + ";";
+    }
+    return result + "\r\n";
+}
+
+std::string Database::getSyndicate(const std::string& merchant_id) {
+    std::shared_lock<std::shared_mutex> lock(db_mutex); // Read-only lock!
+    
+    auto it = merchant_to_users.find(merchant_id);
+    if (it == merchant_to_users.end()) {
+        return "(nil)\r\n";
+    }
+
+    int total_users = it->second.size();
+    std::string compromised_list = "";
+    int compromised_count = 0;
+
+    for (const std::string& user_id : it->second) {
+        if (compromised_cards.find(user_id) != compromised_cards.end() && compromised_cards.at(user_id) > 0) {
+            compromised_list += user_id + ",";
+            compromised_count++;
+        }
+    }
+
+    // Format: "+SYNDICATE TOTAL:5 COMPROMISED:2 LIST:tok_1,tok_2,"
+    return "+SYNDICATE TOTAL:" + std::to_string(total_users) + 
+           " COMPROMISED:" + std::to_string(compromised_count) + 
+           " LIST:" + compromised_list + "\r\n";
 }

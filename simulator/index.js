@@ -106,9 +106,12 @@ async function postTransaction(userId, merchantId, lat, lon, timestamp, userInde
             console.warn(`[❌ DECLINED] User: ${userId.substring(0, 13)}... | Reason: ${result.reason}`);
             
             // IF THE CARD IS FROZEN, THROW IT AWAY AND SPAWN A NEW ONE!
-            if (result.reason.includes('Frozen') && userIndex !== -1) {
-                console.log(`[🔄 SYSTEM] Shredding frozen card and issuing new UUID to user pool...`);
-                activeUsers[userIndex] = spawnUser();
+            if (result.reason && result.reason.includes('Frozen')) {
+                const index = activeUsers.findIndex(u => u.id === userId);
+                if (index !== -1) {
+                    console.log(`[🔄 SYSTEM] Shredding frozen card and issuing new UUID to user pool...`);
+                    activeUsers[index] = spawnUser();
+                }
             }
         }
     } catch (err) {

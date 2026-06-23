@@ -1,6 +1,7 @@
 #ifndef DATABASE_H
 #define DATABASE_H
 
+#include <chrono>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -73,6 +74,10 @@ public:
 
     void registerSocket(int fd);
     void deregisterSocket(int fd);
+
+    // Data Retrieval Commands (For the UI)
+    std::string getHistory(const std::string& user_id);
+    std::string getSyndicate(const std::string& merchant_id);
 };
 
 // Helper function to parse inputs
