@@ -60,6 +60,19 @@ export default function App() {
   const [alerts, setAlerts] = useState([])
   const [inspectedTxn, setInspectedTxn] = useState(null)
 
+  // Fetch historical syndicates on initial page load
+  useEffect(() => {
+    fetch('http://localhost:5001/api/syndicates/all')
+      .then(res => res.json())
+      .then(data => {
+        // The data is an array: ['merch_a', 'merch_b']
+        // We prepend them with the [ALERT] string so our existing memo parser works perfectly!
+        const historicalAlerts = data.map(m => `[ALERT] Fraud Ring Detected: ${m}`);
+        setAlerts(prev => [...new Set([...prev, ...historicalAlerts])]);
+      })
+      .catch(err => console.error("Failed to fetch historical syndicates:", err));
+  }, []);
+  
   const blacklistedMerchants = useMemo(() => {
     const fromAlerts = alerts.map((a) => parseAlertMerchant(a)).filter(Boolean)
     return [...new Set(fromAlerts)]

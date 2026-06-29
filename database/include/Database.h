@@ -58,7 +58,7 @@ private:
     void loadFromLog();
 
     std::unordered_set<int> active_sockets;
-
+    std::vector<std::string> caught_syndicates;
 public:
     Database(); 
     
@@ -78,6 +78,8 @@ public:
     // Data Retrieval Commands (For the UI)
     std::string getHistory(const std::string& user_id);
     std::string getSyndicate(const std::string& merchant_id);
+
+    std::string getAllSyndicates();
 };
 
 // Helper function to parse inputs

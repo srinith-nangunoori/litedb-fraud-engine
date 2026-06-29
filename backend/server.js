@@ -171,3 +171,18 @@ app.get('/api/syndicate/:merchantId', async (req, res) => {
 server.listen(PORT, () => {
     console.log(`[INFO] NodeJS Orchestrator running on http://localhost:${PORT}`);
 });
+
+// 4. GET ALL CAUGHT SYNDICATES (For UI Persistence on Refresh)
+app.get('/api/syndicates/all', async (req, res) => {
+    const dbResponse = await sendDbCommand(`GET_ALL_SYNDICATES`);
+
+    if (dbResponse === '(nil)') {
+        return res.json([]);
+    }
+
+    // Parse: "+SYNDICATES merch_1,merch_2,"
+    const cleanData = dbResponse.replace('+SYNDICATES', '').trim();
+    const list = cleanData.split(',').filter(x => x.length > 0);
+
+    return res.json(list);
+});

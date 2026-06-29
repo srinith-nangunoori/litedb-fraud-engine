@@ -193,7 +193,7 @@ std::vector<std::string> parseInput(const std::string& input) {
     return tokens;
 }
 
-// --- BACKGROUND GRAPH ANALYZER ---
+// --- BACKGROUND GRAPH ANALYZER (V2: Ratio-Based Heuristics) ---
 void Database::runGraphAnalysis() {
     std::unique_lock<std::shared_mutex> lock(db_mutex);
     int new_fraud_rings_found = 0;
@@ -205,27 +205,38 @@ void Database::runGraphAnalysis() {
         if (allowlist.find(merchant_id) != allowlist.end()) continue;
         if (blacklist.mightContain(merchant_id)) continue;
 
-        int compromised_user_count = 0;
+        double total_users = users.size();
+        double compromised_user_count = 0;
+
         for (const std::string& user_id : users) {
-            if (compromised_cards[user_id] > 0) {
+            if (compromised_cards.find(user_id) != compromised_cards.end() && compromised_cards.at(user_id) > 0) {
                 compromised_user_count++;
             }
         }
 
-        if (compromised_user_count >= 2) {
-            blacklist.add(merchant_id);
-            appendToLog("BLACKLIST " + merchant_id); 
+        // --- THE V2 AI LOGIC: RATIO & THRESHOLD MATH ---
+        // Rule 1: We need at least 3 distinct users to make a fair statistical judgment.
+        // Rule 2: If more than 30% of the customers are compromised cards, it is a Fraud Ring.
+        
+        if (total_users >= 3) {
+            double fraud_ratio = compromised_user_count / total_users;
             
-            std::cout << "\n[ALERT] GRAPH ENGINE DETECTED FRAUD RING! Auto-Blacklisted: " << merchant_id << "\n> ";
-            
-            // --- THE BROADCAST LOOP ---
-            std::string alert_msg = "[ALERT] Fraud Ring Detected: " + merchant_id + "\r\n";
-            for (int fd : active_sockets) {
-                send(fd, alert_msg.c_str(), alert_msg.length(), 0);
-            }
-            // ---------------------------
+            if (fraud_ratio > 0.30) {
+                blacklist.add(merchant_id);
+                caught_syndicates.push_back(merchant_id);
+                appendToLog("BLACKLIST " + merchant_id); 
+                
+                std::cout << "\n[ALERT] GRAPH ENGINE DETECTED FRAUD RING! Auto-Blacklisted: " << merchant_id 
+                          << " (Ratio: " << (fraud_ratio * 100) << "%)\n> ";
+                
+                // Broadcast to WebSockets
+                std::string alert_msg = "[ALERT] Fraud Ring Detected: " + merchant_id + "\r\n";
+                for (int fd : active_sockets) {
+                    send(fd, alert_msg.c_str(), alert_msg.length(), 0);
+                }
 
-            new_fraud_rings_found++;
+                new_fraud_rings_found++;
+            }
         }
     }
 
@@ -284,4 +295,15 @@ std::string Database::getSyndicate(const std::string& merchant_id) {
     return "+SYNDICATE TOTAL:" + std::to_string(total_users) + 
            " COMPROMISED:" + std::to_string(compromised_count) + 
            " LIST:" + compromised_list + "\r\n";
+}
+
+std::string Database::getAllSyndicates() {
+    std::shared_lock<std::shared_mutex> lock(db_mutex);
+    if (caught_syndicates.empty()) return "(nil)\r\n";
+    
+    std::string result = "+SYNDICATES ";
+    for (const std::string& m : caught_syndicates) {
+        result += m + ",";
+    }
+    return result + "\r\n";
 }
