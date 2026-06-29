@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <sys/socket.h>
+#include <thread>
 
 // --- ADVANCED BLOOM FILTER IMPLEMENTATION ---
 BloomFilter::BloomFilter(size_t expected_items, double false_positive_rate) {
@@ -33,6 +34,7 @@ bool BloomFilter::mightContain(const std::string& item) {
 // Constructor
 Database::Database() {
     std::cout << "[INFO] Initializing Fraud Engine Database..." << std::endl;
+    loadSnapshotRDB();
     loadFromLog();
 }
 
@@ -70,6 +72,107 @@ void Database::loadFromLog() {
         }
     }
     file.close();
+}
+
+// ─────────────────────────────────────────────────────────────
+// RDB SNAPSHOT ENGINE (Serialization & Deserialization)
+// ─────────────────────────────────────────────────────────────
+
+std::string Database::serializeTransaction(const Transaction& txn) {
+    // Convert to a flat string: "merchant_id,lat,lon,timestamp"
+    return txn.merchant_id + "," + std::to_string(txn.lat) + "," + 
+           std::to_string(txn.lon) + "," + std::to_string(txn.timestamp);
+}
+
+Transaction Database::deserializeTransaction(const std::string& data) {
+    std::stringstream ss(data);
+    std::string item;
+    std::vector<std::string> parts;
+    while (std::getline(ss, item, ',')) {
+        parts.push_back(item);
+    }
+    return { parts[0], std::stod(parts[1]), std::stod(parts[2]), std::stoull(parts[3]) };
+}
+
+void Database::saveSnapshotRDB() {
+    // We lock the database completely so memory doesn't change while we save it!
+    std::unique_lock<std::shared_mutex> lock(db_mutex);
+
+    std::ofstream file("litedb.rdb", std::ios::trunc); // trunc overwrites the file
+    if (!file.is_open()) return;
+
+    // 1. Save the Bloom Filter (Caught Syndicates)
+    file << "[SYNDICATES]\n";
+    for (const std::string& merch : caught_syndicates) {
+        file << merch << "\n";
+    }
+
+    // 2. Save the User History (The LRU Cache & Velocity Data)
+    file << "[HISTORY]\n";
+    for (const auto& pair : user_history) {
+        const std::string& user_id = pair.first;
+        const auto& queue = pair.second->second;
+        
+        file << "USER:" << user_id << "\n";
+        for (const Transaction& txn : queue) {
+            file << serializeTransaction(txn) << "\n";
+        }
+    }
+
+    file.close();
+
+    // 3. WIPE THE AOF LOG! 
+    // Since everything is safely in the RDB snapshot, the AOF log is redundant.
+    std::ofstream aof_file("litedb.aof", std::ios::trunc);
+    aof_file.close();
+
+    std::cout << "\n[SYSTEM] RDB Snapshot Saved successfully. AOF log cleared.\n> ";
+}
+
+void Database::loadSnapshotRDB() {
+    std::ifstream file("litedb.rdb", std::ios::in);
+    if (!file.is_open()) return;
+
+    std::cout << "[INFO] Loading RDB Snapshot into Memory..." << std::endl;
+
+    std::string line;
+    std::string current_section = "";
+    std::string current_user = "";
+
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+
+        if (line == "[SYNDICATES]") { current_section = "SYNDICATES"; continue; }
+        if (line == "[HISTORY]") { current_section = "HISTORY"; continue; }
+
+        if (current_section == "SYNDICATES") {
+            // Restore the Bloom Filter and UI list!
+            blacklist.add(line);
+            caught_syndicates.push_back(line);
+        } 
+        else if (current_section == "HISTORY") {
+            if (line.substr(0, 5) == "USER:") {
+                current_user = line.substr(5);
+                // Create the user in the LRU list
+                lru_list.push_front({current_user, std::deque<Transaction>()});
+                user_history[current_user] = lru_list.begin();
+            } else {
+                // Restore the transaction to the user's queue
+                Transaction txn = deserializeTransaction(line);
+                user_history[current_user]->second.push_back(txn);
+            }
+        }
+    }
+    file.close();
+}
+
+// Background Thread Runner
+void Database::runSnapshotThread() {
+    while (true) {
+        // Run a snapshot every 30 seconds
+        std::this_thread::sleep_for(std::chrono::seconds(30));
+        saveSnapshotRDB();
+    }
 }
 
 // Admin Commands

@@ -90,10 +90,14 @@ int main() {
     listen(server_fd, 5);
 
     std::cout << "[INFO] LiteDB Server started on port " << PORT << std::endl;
-
+    
     // --- SPAWN BACKGROUND AI THREAD ---
     std::thread ai_thread(graphAnalyzerThread, std::ref(db));
     ai_thread.detach();
+
+    // --- SPAWN BACKGROUND RDB SNAPSHOT THREAD ---
+    std::thread snapshot_thread(&Database::runSnapshotThread, &db);
+    snapshot_thread.detach();
     // ----------------------------------
 
     while (true) {

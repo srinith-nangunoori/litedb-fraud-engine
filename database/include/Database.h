@@ -59,6 +59,15 @@ private:
 
     std::unordered_set<int> active_sockets;
     std::vector<std::string> caught_syndicates;
+
+    // --- RDB Snapshot Engine ---
+    void saveSnapshotRDB();
+    void loadSnapshotRDB();
+    
+    // Helper to serialize/deserialize a Transaction struct
+    std::string serializeTransaction(const Transaction& txn);
+    Transaction deserializeTransaction(const std::string& data);
+
 public:
     Database(); 
     
@@ -80,6 +89,9 @@ public:
     std::string getSyndicate(const std::string& merchant_id);
 
     std::string getAllSyndicates();
+
+    // The Background Snapshot Worker
+    void runSnapshotThread();
 };
 
 // Helper function to parse inputs
