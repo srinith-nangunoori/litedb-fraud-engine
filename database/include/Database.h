@@ -52,6 +52,10 @@ private:
     std::unordered_map<std::string, int> compromised_cards;
 
     std::shared_mutex db_mutex;
+    // --- The Asynchronous AOF Buffers ---
+    std::vector<std::string> active_aof_buffer;
+    std::vector<std::string> flush_aof_buffer;
+    std::mutex aof_mutex; // A tiny, separate lock just for swapping buffers
 
     // Helper functions
     void appendToLog(const std::string& command_str);
@@ -92,6 +96,7 @@ public:
 
     // The Background Snapshot Worker
     void runSnapshotThread();
+    void runAofFlusherThread(); // The new background disk writer!
 };
 
 // Helper function to parse inputs

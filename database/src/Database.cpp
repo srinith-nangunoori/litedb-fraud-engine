@@ -38,14 +38,13 @@ Database::Database() {
     loadFromLog();
 }
 
-// Logger
+// --- ASYNCHRONOUS LOGGER (RAM Buffer) ---
 void Database::appendToLog(const std::string& command_str) {
-    std::ofstream file("litedb.aof", std::ios::app);
-    if (file.is_open()) {
-        file << command_str << "\n";
-        file.close();
-    }
+    // We lock a tiny, separate mutex just for the AOF buffer so we don't block the main DB!
+    std::lock_guard<std::mutex> aof_lock(aof_mutex);
+    active_aof_buffer.push_back(command_str);
 }
+
 
 // Replay Engine
 void Database::loadFromLog() {
@@ -265,7 +264,7 @@ std::string Database::processSwipe(const std::string& user_id, const std::string
     auto after_velocity = std::chrono::high_resolution_clock::now();
     t_velocity = std::chrono::duration_cast<std::chrono::microseconds>(after_velocity - before_velocity).count();
 
-    // 5. MEASURE DISK PERSISTENCE TIME (AOF write)
+    // 5. MEASURE ASYNC BUFFER PUSH TIME (Was T_DISK, now T_RAM_BUFFER)
     auto before_disk = std::chrono::high_resolution_clock::now();
     uint64_t t_disk = 0;
     if (!is_replay) {
@@ -409,4 +408,34 @@ std::string Database::getAllSyndicates() {
         result += m + ",";
     }
     return result + "\r\n";
+}
+
+
+// --- ASYNCHRONOUS BACKGROUND AOF FLUSHER ---
+void Database::runAofFlusherThread() {
+    while (true) {
+        // Wait 1 second between disk flushes
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        {
+            // 1. Lock the AOF mutex briefly to swap pointers!
+            std::lock_guard<std::mutex> aof_lock(aof_mutex);
+            if (active_aof_buffer.empty()) continue; // Nothing to write
+            
+            // Swap takes nanoseconds. Now active_buffer is empty and ready for new live traffic!
+            std::swap(active_aof_buffer, flush_aof_buffer);
+        } // Lock is automatically released here!
+
+        // 2. We write to the SSD at our own pace WITHOUT holding any locks!
+        std::ofstream file("litedb.aof", std::ios::app);
+        if (file.is_open()) {
+            for (const std::string& log : flush_aof_buffer) {
+                file << log << "\n";
+            }
+            file.close();
+        }
+        
+        // Clear the flush buffer so it's ready for the next cycle
+        flush_aof_buffer.clear();
+    }
 }

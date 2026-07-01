@@ -99,6 +99,10 @@ int main() {
     std::thread snapshot_thread(&Database::runSnapshotThread, &db);
     snapshot_thread.detach();
     // ----------------------------------
+    // --- SPAWN BACKGROUND AOF FLUSHER THREAD ---
+    std::thread aof_flusher_thread(&Database::runAofFlusherThread, &db);
+    aof_flusher_thread.detach();
+    // ----------------------------------
 
     while (true) {
         sockaddr_in client_address;
