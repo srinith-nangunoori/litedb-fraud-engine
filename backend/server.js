@@ -17,19 +17,25 @@ const dbSocket = net.createConnection({ port: CPP_PORT, host: CPP_HOST }, () => 
     console.log('[INFO] Connected to C++ Database Engine over TCP.');
 });
 
-let responseResolver = null;
+// Queue to safely handle overlapping TCP requests
+const requestQueue = [];
 
 dbSocket.on('data', (data) => {
-    const response = data.toString().trim();
+    // A single TCP packet might contain multiple lines of responses (if C++ replies fast)
+    const responses = data.toString().trim().split('\n');
     
-    // Check if it's a real-time background Graph Alert from C++
-    if (response.startsWith('[ALERT]')) {
-        broadcastToUI({ type: 'ALERT', data: response });
-    } 
-    // Otherwise, resolve the pending HTTP API request
-    else if (responseResolver) {
-        responseResolver(response);
-        responseResolver = null;
+    for (const res of responses) {
+        const cleanRes = res.trim();
+        if (!cleanRes) continue;
+
+        if (cleanRes.startsWith('[ALERT]')) {
+            broadcastToUI({ type: 'ALERT', data: cleanRes });
+        } 
+        else if (requestQueue.length > 0) {
+            // Resolve the oldest pending request in the queue
+            const resolver = requestQueue.shift();
+            resolver(cleanRes);
+        }
     }
 });
 
@@ -37,9 +43,10 @@ dbSocket.on('error', (err) => {
     console.error('[ERROR] C++ Database connection error:', err.message);
 });
 
+// Safely queue commands so they never overwrite each other
 function sendDbCommand(command) {
     return new Promise((resolve) => {
-        responseResolver = resolve;
+        requestQueue.push(resolve);
         dbSocket.write(command + '\n');
     });
 }
@@ -152,19 +159,34 @@ app.get('/api/syndicate/:merchantId', async (req, res) => {
     const dbResponse = await sendDbCommand(`GET_SYNDICATE ${merchantId}`);
 
     if (dbResponse === '(nil)') {
-        return res.status(404).json({ error: 'Merchant not found in graph' });
+        // Return a safe empty graph instead of crashing React!
+        return res.json({ merchantId, totalUsers: 0, compromisedCount: 0, compromisedUsers: [] });
     }
 
-    // Parse: "+SYNDICATE TOTAL:5 COMPROMISED:2 LIST:tok_1,tok_2,"
-    const cleanData = dbResponse.replace('+SYNDICATE', '').trim();
-    const parts = cleanData.split(' ');
-    
-    const total = parseInt(parts[0].split(':')[1]);
-    const compromised = parseInt(parts[1].split(':')[1]);
-    const listString = parts[2].split(':')[1];
-    const list = listString ? listString.split(',').filter(x => x.length > 0) : [];
+    try {
+        // Parse: "+SYNDICATE TOTAL:5 COMPROMISED:2 LIST:tok_1,tok_2,"
+        const cleanData = dbResponse.replace('+SYNDICATE', '').trim();
+        const parts = cleanData.split(' ');
+        
+        const total = parseInt(parts[0].split(':')[1] || '0');
+        const compromised = parseInt(parts[1].split(':')[1] || '0');
+        
+        // Safely extract the list string, even if it's empty
+        const listPart = parts[2] ? parts[2].split(':') : [];
+        const listString = listPart.length > 1 ? listPart[1] : '';
+        
+        const list = listString ? listString.split(',').filter(x => x.length > 0) : [];
 
-    return res.json({ merchantId, totalUsers: total, compromisedCount: compromised, compromisedUsers: list });
+        return res.json({ 
+            merchantId, 
+            totalUsers: total, 
+            compromisedCount: compromised, 
+            compromisedUsers: list 
+        });
+    } catch (err) {
+        console.error(`[API ERROR] Failed to parse Syndicate Data: ${err.message}`);
+        return res.status(500).json({ error: 'Failed to parse C++ response' });
+    }
 });
 
 // --- START SERVER ---
@@ -185,4 +207,25 @@ app.get('/api/syndicates/all', async (req, res) => {
     const list = cleanData.split(',').filter(x => x.length > 0);
 
     return res.json(list);
+});
+
+// 5. GET CRIME SCENE LOCATIONS (Queries C++ GET_CRIME_SCENES)
+app.get('/api/crimescenes/:merchantId', async (req, res) => {
+    const { merchantId } = req.params;
+    const dbResponse = await sendDbCommand(`GET_CRIME_SCENES ${merchantId}`);
+
+    if (dbResponse === '(nil)') {
+        return res.json([]);
+    }
+
+    // Parse: "+CRIME_SCENES 40.7,-74.0,1600;51.5,-0.1,1601;"
+    const cleanData = dbResponse.replace('+CRIME_SCENES', '').trim();
+    const records = cleanData.split(';').filter(x => x.length > 0);
+
+    const scenes = records.map(rec => {
+        const [lat, lon, ts] = rec.split(',');
+        return { lat: parseFloat(lat), lon: parseFloat(lon), timestamp: parseInt(ts) };
+    });
+
+    return res.json(scenes);
 });

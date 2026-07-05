@@ -1,353 +1,260 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps'
 
+const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
 const API_BASE = 'http://localhost:5001'
-const GRAPH_SIZE = 460
+
+const GRAPH_SIZE = 300
 const CENTER = GRAPH_SIZE / 2
-const ORBIT_RADIUS = 158
-const MERCHANT_R = 26
-const COMPROMISED_R = 7
-const SAFE_R = 5.5
+const ORBIT_RADIUS = 100
+const MERCHANT_R = 18
+const COMPROMISED_R = 5
+const SAFE_R = 4
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GRAPH COMPONENT
+// COMPONENT 1: THE BIPARTITE NODE GRAPH (Harvester Module)
 // ─────────────────────────────────────────────────────────────────────────────
 function SyndicateGraph({ data }) {
-  const { merchantId, totalUsers, compromisedCount, compromisedUsers } = data
+  const { totalUsers, compromisedCount, compromisedUsers } = data
   const safeCount = Math.max(totalUsers - compromisedCount, 0)
 
-  // Build the full node list: compromised first, then safe placeholders
   const allUsers = [
     ...compromisedUsers.map((id, i) => ({ id, compromised: true, index: i })),
-    ...Array.from({ length: safeCount }, (_, i) => ({
-      id: `safe_${i}`,
-      compromised: false,
-      index: compromisedUsers.length + i,
-    })),
+    ...Array.from({ length: safeCount }, (_, i) => ({ id: `safe_${i}`, compromised: false, index: compromisedUsers.length + i })),
   ]
 
   const total = allUsers.length
-
   const nodes = allUsers.map((user, i) => {
     const angle = (i / Math.max(total, 1)) * Math.PI * 2 - Math.PI / 2
-    return {
-      ...user,
-      x: CENTER + ORBIT_RADIUS * Math.cos(angle),
-      y: CENTER + ORBIT_RADIUS * Math.sin(angle),
-    }
+    return { ...user, x: CENTER + ORBIT_RADIUS * Math.cos(angle), y: CENTER + ORBIT_RADIUS * Math.sin(angle) }
   })
 
-  const compromisedNodes = nodes.filter((n) => n.compromised)
-  const safeNodes = nodes.filter((n) => !n.compromised)
-
   return (
-    <svg
-      viewBox={`0 0 ${GRAPH_SIZE} ${GRAPH_SIZE}`}
-      className="mx-auto h-auto w-full max-w-[460px]"
-      role="img"
-      aria-label={`Syndicate graph for ${merchantId}`}
-    >
-      {/* ── Faint orbit ring ── */}
-      <circle
-        cx={CENTER}
-        cy={CENTER}
-        r={ORBIT_RADIUS}
-        fill="none"
-        stroke="#27272a"
-        strokeWidth={0.5}
-        strokeDasharray="3 5"
-      />
-
-      {/* ── Connection lines ── */}
-      {nodes.map((node) => (
-        <line
-          key={`line-${node.id}`}
-          x1={CENTER}
-          y1={CENTER}
-          x2={node.x}
-          y2={node.y}
-          stroke={node.compromised ? '#7f1d1d' : '#27272a'}
-          strokeWidth={node.compromised ? 0.7 : 0.4}
-          strokeOpacity={node.compromised ? 0.6 : 0.4}
-        />
-      ))}
-
-      {/* ── Safe user nodes ── */}
-      {safeNodes.map((node) => (
-        <g key={`node-${node.id}`}>
-          <circle
-            cx={node.x}
-            cy={node.y}
-            r={SAFE_R}
-            fill="#18181b"
-            stroke="#3f3f46"
-            strokeWidth={0.8}
-          />
-          {/* tiny center dot */}
-          <circle cx={node.x} cy={node.y} r={1.2} fill="#52525b" />
-        </g>
-      ))}
-
-      {/* ── Compromised user nodes (drawn on top) ── */}
-      {compromisedNodes.map((node) => (
-        <g key={`node-${node.id}`}>
-          {/* outer pulse ring */}
-          <circle
-            cx={node.x}
-            cy={node.y}
-            r={COMPROMISED_R + 6}
-            fill="none"
-            stroke="#ef4444"
-            strokeWidth={0.5}
-            strokeOpacity={0.2}
-          />
-          {/* mid ring */}
-          <circle
-            cx={node.x}
-            cy={node.y}
-            r={COMPROMISED_R + 2.5}
-            fill="none"
-            stroke="#ef4444"
-            strokeWidth={0.5}
-            strokeOpacity={0.35}
-          />
-          {/* filled dot */}
-          <circle
-            cx={node.x}
-            cy={node.y}
-            r={COMPROMISED_R}
-            fill="#450a0a"
-            stroke="#ef4444"
-            strokeWidth={1}
-          />
-          <circle cx={node.x} cy={node.y} r={2.5} fill="#ef4444" fillOpacity={0.9} />
-        </g>
-      ))}
-
-      {/* ── Merchant center node ── */}
-      {/* glow layers */}
-      <circle cx={CENTER} cy={CENTER} r={MERCHANT_R + 14} fill="#ef444408" />
-      <circle cx={CENTER} cy={CENTER} r={MERCHANT_R + 8} fill="#ef444410" />
-      {/* ring */}
-      <circle
-        cx={CENTER}
-        cy={CENTER}
-        r={MERCHANT_R}
-        fill="#09090b"
-        stroke="#ef4444"
-        strokeWidth={1.2}
-        strokeOpacity={0.7}
-      />
-      {/* inner fill */}
-      <circle cx={CENTER} cy={CENTER} r={8} fill="#ef4444" fillOpacity={0.85} />
-
-      {/* ── Merchant label ── */}
-      <text
-        x={CENTER}
-        y={GRAPH_SIZE - 18}
-        textAnchor="middle"
-        fill="#52525b"
-        fontSize="10"
-        fontFamily="ui-monospace, 'Cascadia Code', monospace"
-        letterSpacing="0.08em"
-      >
-        {merchantId}
-      </text>
-    </svg>
+    <div className="flex flex-col items-center justify-center h-full w-full">
+      <svg viewBox={`0 0 ${GRAPH_SIZE} ${GRAPH_SIZE}`} className="w-full max-w-[280px] h-auto overflow-visible">
+        <circle cx={CENTER} cy={CENTER} r={ORBIT_RADIUS} fill="none" stroke="#27272a" strokeWidth={0.5} strokeDasharray="3 5" />
+        {nodes.map((n) => (
+          <line key={`line-${n.id}`} x1={CENTER} y1={CENTER} x2={n.x} y2={n.y} stroke={n.compromised ? '#f59e0b' : '#27272a'} strokeWidth={0.5} strokeOpacity={0.6} />
+        ))}
+        {nodes.filter(n => !n.compromised).map((n) => (
+          <g key={`node-${n.id}`}>
+            <circle cx={n.x} cy={n.y} r={SAFE_R} fill="#18181b" stroke="#3f3f46" strokeWidth={0.8} />
+            <circle cx={n.x} cy={n.y} r={1} fill="#52525b" />
+          </g>
+        ))}
+        {nodes.filter(n => n.compromised).map((n) => (
+          <g key={`node-${n.id}`}>
+            <circle cx={n.x} cy={n.y} r={COMPROMISED_R + 4} fill="none" stroke="#f59e0b" strokeWidth={0.5} className="animate-ping" style={{ transformOrigin: `${n.x}px ${n.y}px` }} />
+            <circle cx={n.x} cy={n.y} r={COMPROMISED_R} fill="#451a03" stroke="#f59e0b" strokeWidth={1} />
+            <circle cx={n.x} cy={n.y} r={2} fill="#f59e0b" />
+          </g>
+        ))}
+        <circle cx={CENTER} cy={CENTER} r={MERCHANT_R + 8} fill="#f59e0b10" className="animate-pulse" />
+        <circle cx={CENTER} cy={CENTER} r={MERCHANT_R} fill="#09090b" stroke="#f59e0b" strokeWidth={1.2} />
+        <circle cx={CENTER} cy={CENTER} r={5} fill="#f59e0b" />
+      </svg>
+    </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT
+// COMPONENT 2: THE CRIME SCENE THREAT MAP (Cash-Out Module)
 // ─────────────────────────────────────────────────────────────────────────────
-export default function SyndicateExplorer({ blacklistedMerchants }) {
-  const [selectedMerchant, setSelectedMerchant] = useState(null)
-  const [cache, setCache] = useState({})
+const MemoizedWorld = React.memo(() => (
+  <Geographies geography={GEO_URL}>
+    {({ geographies }) =>
+      geographies.map((geo) => (
+        <Geography
+          key={geo.rsmKey}
+          geography={geo}
+          fill="#0a0505" 
+          stroke="#3f1d1d" 
+          strokeWidth={0.5}
+          style={{ default: { outline: 'none', vectorEffect: 'non-scaling-stroke' }, hover: { outline: 'none', vectorEffect: 'non-scaling-stroke' }, pressed: { outline: 'none', vectorEffect: 'non-scaling-stroke' } }}
+        />
+      ))
+    }
+  </Geographies>
+));
 
-  // Fall back to the first blacklisted merchant if none is manually selected
-  const activeMerchant = selectedMerchant ?? blacklistedMerchants[0] ?? null
-
-  const entry = activeMerchant ? cache[activeMerchant] : null
-  const syndicateData = entry?.data ?? null
-  const fetchError = entry?.error ?? null
-  const loading = Boolean(activeMerchant && !entry)
-
-  // Fetch syndicate data whenever the active merchant changes and isn't cached
-  useEffect(() => {
-    if (!activeMerchant || cache[activeMerchant]) return undefined
-
-    let cancelled = false
-
-    // activeMerchant is already the clean merchant ID (parsed in App.jsx)
-    // e.g. "merch_cheap_laptops" — NOT the full alert string
-    fetch(`${API_BASE}/api/syndicate/${encodeURIComponent(activeMerchant)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Syndicate load failed (${res.status})`)
-        return res.json()
-      })
-      .then((data) => {
-        if (!cancelled) {
-          setCache((prev) => ({ ...prev, [activeMerchant]: { data } }))
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setCache((prev) => ({ ...prev, [activeMerchant]: { error: err.message } }))
-        }
-      })
-
-    return () => { cancelled = true }
-  }, [activeMerchant, cache])
+function ThreatMap({ crimeScenes = [] }) {
+  const [zoom, setZoom] = useState(1)
+  const [center, setCenter] = useState([0, 20])
 
   return (
-    <section className="mx-auto max-w-6xl px-8 py-16">
-      <header className="mb-12 space-y-2">
-        <h2 className="text-2xl font-light tracking-tight text-white">
-          Syndicate Explorer
-        </h2>
-        <p className="text-sm leading-relaxed text-zinc-500">
-          Bipartite graph intelligence · compromised user networks
-        </p>
-      </header>
+    <div className="w-full h-full min-h-[300px] relative rounded-xl overflow-hidden bg-black border border-white/5">
+      <ComposableMap projection="geoMercator" projectionConfig={{ scale: 130 }} style={{ width: '100%', height: '100%' }}>
+        <ZoomableGroup zoom={zoom} center={center} maxZoom={200} onMoveEnd={({ zoom: z, coordinates }) => { setZoom(z); setCenter(coordinates); }}>
+          <MemoizedWorld />
+          {crimeScenes.map((scene, i) => (
+            <Marker key={i} coordinates={[scene.lon, scene.lat]}>
+              <circle r={3 / zoom} fill="#ef4444" />
+              <circle r={8 / zoom} fill="none" stroke="#ef4444" strokeWidth={1.5 / zoom} className="animate-ping" />
+              <line x1={-6/zoom} y1={0} x2={6/zoom} y2={0} stroke="#ef4444" strokeWidth={0.5/zoom} />
+              <line x1={0} y1={-6/zoom} x2={0} y2={6/zoom} stroke="#ef4444" strokeWidth={0.5/zoom} />
+            </Marker>
+          ))}
+        </ZoomableGroup>
+      </ComposableMap>
+    </div>
+  )
+}
 
-      <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN PAGE LAYOUT
+// ─────────────────────────────────────────────────────────────────────────────
+export default function SyndicateExplorer({ blacklistedMerchants }) {
+  const [activeMerchant, setActiveMerchant] = useState(null)
+  const [intelData, setIntelData] = useState(null)
+  const [crimeScenes, setCrimeScenes] = useState([])
+  const [loading, setLoading] = useState(false)
 
-        {/* ── Sidebar: merchant list ── */}
-        <aside className="rounded-2xl border border-neutral-900 bg-[#09090b] p-8">
-          <p className="mb-6 text-xs tracking-[0.2em] text-zinc-600 uppercase">
-            Blacklisted Merchants
-          </p>
+  useEffect(() => {
+    if (!activeMerchant && blacklistedMerchants.length > 0) {
+      setActiveMerchant(blacklistedMerchants[0])
+    }
+  }, [blacklistedMerchants, activeMerchant])
 
+  useEffect(() => {
+    if (!activeMerchant) return;
+    setLoading(true);
+
+    Promise.all([
+      fetch(`${API_BASE}/api/syndicate/${encodeURIComponent(activeMerchant)}`).then(res => res.ok ? res.json() : null),
+      fetch(`${API_BASE}/api/crimescenes/${encodeURIComponent(activeMerchant)}`).then(res => res.ok ? res.json() : [])
+    ])
+    .then(([graphData, sceneData]) => {
+      setIntelData(graphData);
+      setCrimeScenes(sceneData);
+      setLoading(false);
+    })
+    .catch((err) => {
+      console.error("Failed to fetch Syndicate Intel", err);
+      setLoading(false);
+    });
+
+  }, [activeMerchant])
+
+  const isHarvester = intelData && intelData.compromisedCount > 0;
+  const isCashOut = crimeScenes && crimeScenes.length > 0;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-120px)] min-h-[700px]">
+      
+      {/* ════ SIDEBAR ════ */}
+      <div className="lg:col-span-3 flex flex-col h-full overflow-hidden">
+        <h2 className="text-[10px] font-medium tracking-[0.12em] text-zinc-500 uppercase mb-4">Blacklisted Entities</h2>
+        <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
           {blacklistedMerchants.length === 0 ? (
-            <div className="space-y-3">
-              <div className="h-px bg-zinc-900" />
-              <p className="text-sm leading-relaxed text-zinc-600">
-                No fraud ring alerts detected yet. Merchants appear here when{' '}
-                <span className="font-mono text-zinc-500">ALERT</span> events arrive.
-              </p>
-            </div>
+            <p className="text-[11px] text-zinc-600 mt-4 text-center">No fraud rings detected.</p>
           ) : (
-            <ul className="space-y-1.5">
-              {blacklistedMerchants.map((merchantId) => {
-                const isActive = activeMerchant === merchantId
-                return (
-                  <li key={merchantId}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMerchant(merchantId)}
-                      className="w-full rounded-xl px-4 py-3.5 text-left font-mono text-xs transition-all duration-200 focus:outline-none"
-                      style={{
-                        backgroundColor: isActive ? '#1a0a0a' : 'transparent',
-                        color: isActive ? '#fca5a5' : '#52525b',
-                        borderWidth: 1,
-                        borderStyle: 'solid',
-                        borderColor: isActive ? '#7f1d1d80' : 'transparent',
-                      }}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {isActive && (
-                          <span
-                            className="inline-block h-1.5 w-1.5 rounded-full shrink-0 bg-red-500"
-                            style={{ boxShadow: '0 0 5px #ef4444' }}
-                          />
-                        )}
-                        <span className={isActive ? '' : 'pl-[18px]'}>{merchantId}</span>
-                      </div>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+            blacklistedMerchants.map((merchantId) => {
+              const isActive = activeMerchant === merchantId
+              return (
+                <button
+                  key={merchantId}
+                  onClick={() => setActiveMerchant(merchantId)}
+                  className="w-full text-left p-4 rounded-xl border transition-all duration-300 focus:outline-none"
+                  style={{
+                    backgroundColor: isActive ? '#1a0505' : '#09090b',
+                    borderColor: isActive ? '#ef444450' : 'rgba(255,255,255,0.06)',
+                    boxShadow: isActive ? '0 0 15px rgba(239, 68, 68, 0.1)' : 'none',
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: '#ef4444', boxShadow: isActive ? '0 0 8px #ef4444' : 'none' }} />
+                    <span className="font-mono text-[10px] text-zinc-300 truncate">{merchantId}</span>
+                  </div>
+                </button>
+              )
+            })
           )}
-        </aside>
-
-        {/* ── Main panel: graph + stats ── */}
-        <div className="rounded-2xl border border-neutral-900 bg-[#09090b] p-12">
-          {!activeMerchant ? (
-            <div className="flex h-96 items-center justify-center">
-              <p className="text-sm text-zinc-600">
-                Select a blacklisted merchant to explore syndicate connections.
-              </p>
-            </div>
-          ) : loading ? (
-            <div className="flex h-96 items-center justify-center gap-3">
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse"
-                style={{ animationDelay: '0ms' }}
-              />
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse"
-                style={{ animationDelay: '150ms' }}
-              />
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse"
-                style={{ animationDelay: '300ms' }}
-              />
-            </div>
-          ) : fetchError ? (
-            <div className="flex h-96 flex-col items-center justify-center gap-3">
-              <div className="rounded-lg bg-red-950/20 border border-red-900/30 px-5 py-3">
-                <p className="font-mono text-xs text-red-400/80">{fetchError}</p>
-              </div>
-            </div>
-          ) : syndicateData ? (
-            <div className="space-y-12">
-
-              {/* Stat grid */}
-              <div className="grid gap-8 sm:grid-cols-3">
-                <div>
-                  <p className="text-xs tracking-[0.2em] text-zinc-600 uppercase">
-                    Total Users
-                  </p>
-                  <p className="mt-2 font-mono text-3xl font-light text-white tabular-nums">
-                    {syndicateData.totalUsers}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs tracking-[0.2em] text-zinc-600 uppercase">
-                    Compromised
-                  </p>
-                  <p className="mt-2 font-mono text-3xl font-light text-red-400 tabular-nums">
-                    {syndicateData.compromisedCount}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs tracking-[0.2em] text-zinc-600 uppercase">
-                    Safe
-                  </p>
-                  <p className="mt-2 font-mono text-3xl font-light text-zinc-300 tabular-nums">
-                    {syndicateData.totalUsers - syndicateData.compromisedCount}
-                  </p>
-                </div>
-              </div>
-
-              {/* Bipartite graph */}
-              <SyndicateGraph data={syndicateData} />
-
-              {/* Compromised token list */}
-              {syndicateData.compromisedUsers.length > 0 && (
-                <div className="border-t border-neutral-900 pt-8">
-                  <p className="mb-5 text-xs tracking-[0.2em] text-zinc-600 uppercase">
-                    Compromised Tokens
-                  </p>
-                  <ul className="space-y-2">
-                    {syndicateData.compromisedUsers.map((token) => (
-                      <li key={token} className="flex items-center gap-3">
-                        <span
-                          className="inline-block h-1.5 w-1.5 rounded-full shrink-0 bg-red-500/60"
-                        />
-                        <span className="font-mono text-xs leading-relaxed break-all text-zinc-400">
-                          {token}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          ) : null}
         </div>
-
       </div>
-    </section>
+
+      {/* ════ MAIN INTEL PANEL ════ */}
+      <div className="lg:col-span-9 flex flex-col h-full overflow-y-auto custom-scrollbar pr-2">
+        {loading ? (
+           <div className="bg-[#000000] border border-white/10 rounded-2xl h-[400px] flex items-center justify-center text-[10px] font-mono text-zinc-500 animate-pulse">
+            ANALYZING THREAT VECTORS...
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6">
+            
+            {/* GLOBAL TARGET HEADER */}
+            <div className="bg-[#000000] border border-white/10 rounded-2xl p-6">
+              <h3 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-1">// SYNDICATE TARGET ID</h3>
+              <p className="font-mono text-2xl text-white">{activeMerchant}</p>
+            </div>
+
+            {/* DYNAMIC MODULE A: THE HARVESTER GRAPH */}
+            {isHarvester && (
+              <div className="bg-[#000000] border border-amber-900/30 rounded-2xl p-6 flex flex-col lg:flex-row gap-8">
+                {/* Left: The Graph */}
+                <div className="flex-1 min-h-[300px] bg-black rounded-xl border border-white/5 relative overflow-hidden">
+                  <div className="absolute top-4 left-4 z-10">
+                    <h3 className="font-mono text-[10px] text-amber-500 uppercase tracking-widest bg-black/80 px-2 py-1 rounded border border-amber-900/50">TYPE 1: DATA HARVESTER</h3>
+                  </div>
+                  <SyndicateGraph data={intelData} />
+                </div>
+                {/* Right: The Stats & Data */}
+                <div className="w-full lg:w-1/3 flex flex-col gap-4">
+                  <div className="bg-zinc-950/50 border border-white/5 rounded-xl p-4">
+                    <span className="font-mono text-[9px] text-zinc-500">EXPOSED CARDS</span>
+                    <p className="font-mono text-2xl text-white mt-1">{intelData.totalUsers}</p>
+                  </div>
+                  <div className="bg-zinc-950/50 border border-amber-900/20 rounded-xl p-4">
+                    <span className="font-mono text-[9px] text-amber-500">COMPROMISED ORIGINS</span>
+                    <p className="font-mono text-2xl text-amber-400 font-bold mt-1">{intelData.compromisedCount}</p>
+                  </div>
+                  <div className="flex-1 bg-zinc-950/50 border border-white/5 rounded-xl p-4 overflow-y-auto">
+                    <span className="font-mono text-[9px] text-zinc-500 block mb-3">COMPROMISED TOKENS</span>
+                    <ul className="space-y-2">
+                      {intelData.compromisedUsers.map((t) => (
+                        <li key={t} className="font-mono text-[10px] text-zinc-400 break-all">{t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* DYNAMIC MODULE B: THE CASH-OUT MAP */}
+            {isCashOut && (
+              <div className="bg-[#000000] border border-red-900/30 rounded-2xl p-6 flex flex-col lg:flex-row gap-8">
+                {/* Left: The Threat Map */}
+                <div className="flex-1 min-h-[350px] relative">
+                  <div className="absolute top-4 left-4 z-10">
+                    <h3 className="font-mono text-[10px] text-red-500 uppercase tracking-widest bg-black/80 px-2 py-1 rounded border border-red-900/50">TYPE 2: CASH-OUT FRONT</h3>
+                  </div>
+                  <ThreatMap crimeScenes={crimeScenes} />
+                </div>
+                {/* Right: The Crime Scene Ledger */}
+                <div className="w-full lg:w-1/3 flex flex-col gap-4">
+                  <div className="bg-zinc-950/50 border border-red-900/20 rounded-xl p-4">
+                    <span className="font-mono text-[9px] text-red-500">ATTACK VECTORS DETECTED</span>
+                    <p className="font-mono text-2xl text-red-400 font-bold mt-1">{crimeScenes.length}</p>
+                  </div>
+                  <div className="flex-1 bg-zinc-950/50 border border-white/5 rounded-xl p-4 overflow-y-auto">
+                    <span className="font-mono text-[9px] text-zinc-500 block mb-3">CRIME SCENE LEDGER (GPS)</span>
+                    <ul className="space-y-3">
+                      {crimeScenes.map((scene, i) => (
+                        <li key={i} className="font-mono text-[10px] text-zinc-400 border-l-2 border-red-500 pl-3">
+                          <span className="text-zinc-300 block mb-1">Time: {new Date(scene.timestamp * 1000).toLocaleTimeString()}</span>
+                          <span className="opacity-70">Lat: {scene.lat.toFixed(4)}</span><br/>
+                          <span className="opacity-70">Lon: {scene.lon.toFixed(4)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+      </div>
+
+    </div>
   )
 }

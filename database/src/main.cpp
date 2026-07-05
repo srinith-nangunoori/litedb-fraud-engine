@@ -48,6 +48,10 @@ void handleClient(int client_fd , Database& db){
         else if (action == "GET_SYNDICATE" && command.size() >= 2) {
             response = db.getSyndicate(command[1]);
         }
+        // NEW: Route the Crime Scene command
+        else if (action == "GET_CRIME_SCENES" && command.size() >= 2) {
+            response = db.getCrimeScenes(command[1]);
+        }
         else if (action == "GET_ALL_SYNDICATES") {
             response = db.getAllSyndicates();
         }

@@ -65,9 +65,9 @@ export default function App() {
     fetch('http://localhost:5001/api/syndicates/all')
       .then(res => res.json())
       .then(data => {
-        // The data is an array: ['merch_a', 'merch_b']
-        // We prepend them with the [ALERT] string so our existing memo parser works perfectly!
-        const historicalAlerts = data.map(m => `[ALERT] Fraud Ring Detected: ${m}`);
+        // FIX: Ignore the C++ (nil) response!
+        const validData = data.filter(m => m !== '(nil)' && m.trim() !== '');
+        const historicalAlerts = validData.map(m => `[ALERT] Fraud Ring Detected: ${m}`);
         setAlerts(prev => [...new Set([...prev, ...historicalAlerts])]);
       })
       .catch(err => console.error("Failed to fetch historical syndicates:", err));

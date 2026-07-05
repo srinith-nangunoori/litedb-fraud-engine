@@ -236,6 +236,11 @@ std::string Database::processSwipe(const std::string& user_id, const std::string
             if (speed_kmh > 1000.0) {
                 compromised_cards[user_id]++; 
                 
+                // NEW: Save the Hacker's exact location into the Crime Scene box!
+                crime_scenes[merchant_id].push_back({merchant_id, lat, lon, timestamp});
+                // NEW: Record that a hacker tried to use this merchant!
+                cashout_attempts[merchant_id]++; 
+                
                 auto end_time = std::chrono::high_resolution_clock::now();
                 t_velocity = std::chrono::duration_cast<std::chrono::microseconds>(end_time - before_velocity).count();
                 uint64_t t_total = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
@@ -316,27 +321,34 @@ void Database::runGraphAnalysis() {
             }
         }
 
-        // --- THE V2 AI LOGIC: RATIO & THRESHOLD MATH ---
-        // Rule 1: We need at least 3 distinct users to make a fair statistical judgment.
-        // Rule 2: If more than 30% of the customers are compromised cards, it is a Fraud Ring.
         
+        // --- THE V2 AI LOGIC (HARVESTERS) ---
         if (total_users >= 3) {
             double fraud_ratio = compromised_user_count / total_users;
-            
             if (fraud_ratio > 0.30) {
                 blacklist.add(merchant_id);
                 caught_syndicates.push_back(merchant_id);
-                appendToLog("BLACKLIST " + merchant_id); 
-                
-                std::cout << "\n[ALERT] GRAPH ENGINE DETECTED FRAUD RING! Auto-Blacklisted: " << merchant_id 
-                          << " (Ratio: " << (fraud_ratio * 100) << "%)\n> ";
-                
-                // Broadcast to WebSockets
+                std::cout << "\n[ALERT] GRAPH ENGINE DETECTED DATA HARVESTER! Auto-Blacklisted: " << merchant_id << "\n> ";
                 std::string alert_msg = "[ALERT] Fraud Ring Detected: " + merchant_id + "\r\n";
-                for (int fd : active_sockets) {
-                    send(fd, alert_msg.c_str(), alert_msg.length(), 0);
-                }
+                for (int fd : active_sockets) send(fd, alert_msg.c_str(), alert_msg.length(), 0);
+                new_fraud_rings_found++;
+                continue; // Skip the next check if already blacklisted
+            }
+        }
 
+        // --- NEW: THE V2 AI LOGIC (CASH-OUT FRONTS) ---
+        // If a merchant has a high ratio of hackers trying to buy from them compared to real users
+        int hacker_attempts = cashout_attempts[merchant_id];
+        if (hacker_attempts >= 2 && total_users >= 1) {
+            double cashout_ratio = (double)hacker_attempts / total_users;
+            
+            // If they have more hackers than real customers, they are a shell company!
+            if (cashout_ratio > 0.50) {
+                blacklist.add(merchant_id);
+                caught_syndicates.push_back(merchant_id);
+                std::cout << "\n[ALERT] GRAPH ENGINE DETECTED CASHOUT FRONT! Auto-Blacklisted: " << merchant_id << "\n> ";
+                std::string alert_msg = "[ALERT] Fraud Ring Detected: " + merchant_id + "\r\n";
+                for (int fd : active_sockets) send(fd, alert_msg.c_str(), alert_msg.length(), 0);
                 new_fraud_rings_found++;
             }
         }
@@ -397,6 +409,22 @@ std::string Database::getSyndicate(const std::string& merchant_id) {
     return "+SYNDICATE TOTAL:" + std::to_string(total_users) + 
            " COMPROMISED:" + std::to_string(compromised_count) + 
            " LIST:" + compromised_list + "\r\n";
+}
+
+std::string Database::getCrimeScenes(const std::string& merchant_id) {
+    std::shared_lock<std::shared_mutex> lock(db_mutex); // Read-only lock!
+    
+    auto it = crime_scenes.find(merchant_id);
+    if (it == crime_scenes.end() || it->second.empty()) {
+        return "(nil)\r\n";
+    }
+
+    // Format: "+CRIME_SCENES lat,lon,timestamp;lat,lon,timestamp;"
+    std::string result = "+CRIME_SCENES ";
+    for (const auto& txn : it->second) {
+        result += std::to_string(txn.lat) + "," + std::to_string(txn.lon) + "," + std::to_string(txn.timestamp) + ";";
+    }
+    return result + "\r\n";
 }
 
 std::string Database::getAllSyndicates() {

@@ -50,6 +50,10 @@ private:
     // --- The Graph Engine Memory ---
     std::unordered_map<std::string, std::unordered_set<std::string>> merchant_to_users;
     std::unordered_map<std::string, int> compromised_cards;
+    // NEW: The Crime Scene Evidence Box (MerchantID -> List of Hacker Transactions)
+    std::unordered_map<std::string, std::vector<Transaction>> crime_scenes;
+    // NEW: Tracks how many times a hacker tried to cash-out at this merchant
+    std::unordered_map<std::string, int> cashout_attempts;
 
     std::shared_mutex db_mutex;
     // --- The Asynchronous AOF Buffers ---
@@ -91,6 +95,8 @@ public:
     // Data Retrieval Commands (For the UI)
     std::string getHistory(const std::string& user_id);
     std::string getSyndicate(const std::string& merchant_id);
+    // NEW: Fetch the Crime Scene locations for a specific merchant
+    std::string getCrimeScenes(const std::string& merchant_id);
 
     std::string getAllSyndicates();
 

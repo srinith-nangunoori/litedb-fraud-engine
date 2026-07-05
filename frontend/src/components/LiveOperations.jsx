@@ -216,7 +216,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
             </div>
           </div>
 
-          <div className="flex-1 bg-[#000000] rounded-2xl border border-white/10 overflow-hidden relative">
+          <div className="flex-1 bg-[#000000] rounded-2xl border border-white/10 overflow-hidden relative min-h-[400px]">
             <ComposableMap projection="geoMercator" projectionConfig={{ scale: 130 }} style={{ width: '100%', height: '100%' }}>
               <ZoomableGroup zoom={zoom} center={center} maxZoom={200} onMoveEnd={({ zoom: z, coordinates }) => { setZoom(z); setCenter(coordinates); }}>
                 
@@ -270,7 +270,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
           {/* CHART 1: TOTAL LATENCY TREND */}
           <div className="bg-[#000000] rounded-2xl border border-white/10 p-4 flex flex-col justify-between">
             <p className="text-[9px] tracking-widest text-zinc-500 font-bold uppercase mb-2">REAL-TIME C++ LATENCY (T_TOTAL)</p>
-            <div className="flex-1">
+            <div className="flex-1 w-full" style={{ minHeight: '120px' }}> {/* <--- FIX: Forced minHeight */}
               {lineChartData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-xs text-zinc-700">Awaiting stream...</div>
               ) : (
@@ -279,7 +279,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
                     <XAxis dataKey="name" hide={true} />
                     <YAxis hide={true} domain={['auto', 'auto']} />
                     <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#27272a', strokeWidth: 1 }} />
-                    <RechartsLine type="monotone" dataKey="t_total" name="Total Latency" stroke="#ffffff" strokeWidth={1} dot={false} />
+                    <RechartsLine type="monotone" dataKey="t_total" name="Total Latency" stroke="#ffffff" strokeWidth={1} dot={false} animationDuration={700} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -289,7 +289,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
           {/* CHART 2: MEMORY VS DISK COMPARISON */}
           <div className="bg-[#000000] rounded-2xl border border-white/10 p-4 flex flex-col justify-between">
             <p className="text-[9px] tracking-widest text-zinc-500 font-bold uppercase mb-2">COMPUTATION (RAM) VS STORAGE (SSD)</p>
-            <div className="flex-1">
+            <div className="flex-1 w-full" style={{ minHeight: '120px' }}> {/* <--- FIX: Forced minHeight */}
               {txnList.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-xs text-zinc-700">Awaiting telemetry...</div>
               ) : (
@@ -298,9 +298,8 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
                     <XAxis dataKey="name" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis hide={true} />
                     <Tooltip content={<ChartTooltip />} cursor={{ fill: 'transparent' }} />
-                    <Bar dataKey="value" name="Avg Latency" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="value" name="Avg Latency" radius={[4, 4, 0, 0]} animationDuration={700}>
                       {barChartData.map((entry, index) => (
-                        // FIX: We use <Cell> instead of raw <rect> to color the bars safely!
                         <Cell key={`bar-cell-${index}`} fill={index === 0 ? '#38bdf8' : '#fbbf24'} />
                       ))}
                     </Bar>
