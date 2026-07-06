@@ -235,12 +235,34 @@ std::string Database::processSwipe(const std::string& user_id, const std::string
             double speed_kmh = distance_km / time_diff_hours;
             if (speed_kmh > 1000.0) {
                 compromised_cards[user_id]++; 
-                
-                // NEW: Save the Hacker's exact location into the Crime Scene box!
                 crime_scenes[merchant_id].push_back({merchant_id, lat, lon, timestamp});
-                // NEW: Record that a hacker tried to use this merchant!
                 cashout_attempts[merchant_id]++; 
                 
+                // NEW: TICKET 2.3 - INLINE RATIO CHECK (Safe for Amazon!)
+                int hacker_attempts = cashout_attempts[merchant_id];
+                // How many real, approved users does this merchant have in the graph?
+                int real_users = merchant_to_users[merchant_id].size(); 
+                int total_traffic = real_users + hacker_attempts;
+
+                // We need at least 3 attempts to make a statistical judgment
+                if (total_traffic >= 3) {
+                    double cashout_ratio = (double)hacker_attempts / total_traffic;
+                    
+                    // If more than 50% of this merchant's traffic is hackers, it's a front!
+                    if (cashout_ratio > 0.50) {
+                        if (!blacklist.mightContain(merchant_id)) {
+                            blacklist.add(merchant_id);
+                            caught_syndicates.push_back(merchant_id);
+                            
+                            if (!is_replay) {
+                                appendToLog("BLACKLIST " + merchant_id);
+                                std::string alert_msg = "[ALERT] INLINE FLASH-ATTACK BLOCKED! Auto-Blacklisted: " + merchant_id + "\r\n";
+                                for (int fd : active_sockets) send(fd, alert_msg.c_str(), alert_msg.length(), 0);
+                            }
+                        }
+                    }
+                }
+
                 auto end_time = std::chrono::high_resolution_clock::now();
                 t_velocity = std::chrono::duration_cast<std::chrono::microseconds>(end_time - before_velocity).count();
                 uint64_t t_total = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
@@ -335,23 +357,7 @@ void Database::runGraphAnalysis() {
                 continue; // Skip the next check if already blacklisted
             }
         }
-
-        // --- NEW: THE V2 AI LOGIC (CASH-OUT FRONTS) ---
-        // If a merchant has a high ratio of hackers trying to buy from them compared to real users
-        int hacker_attempts = cashout_attempts[merchant_id];
-        if (hacker_attempts >= 2 && total_users >= 1) {
-            double cashout_ratio = (double)hacker_attempts / total_users;
-            
-            // If they have more hackers than real customers, they are a shell company!
-            if (cashout_ratio > 0.50) {
-                blacklist.add(merchant_id);
-                caught_syndicates.push_back(merchant_id);
-                std::cout << "\n[ALERT] GRAPH ENGINE DETECTED CASHOUT FRONT! Auto-Blacklisted: " << merchant_id << "\n> ";
-                std::string alert_msg = "[ALERT] Fraud Ring Detected: " + merchant_id + "\r\n";
-                for (int fd : active_sockets) send(fd, alert_msg.c_str(), alert_msg.length(), 0);
-                new_fraud_rings_found++;
-            }
-        }
+        
     }
 
     if (new_fraud_rings_found > 0) {
