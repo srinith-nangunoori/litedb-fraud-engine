@@ -281,7 +281,9 @@ std::string Database::processSwipe(const std::string& user_id, const std::string
         user_history[user_id] = lru_list.begin();
     }
 
-    // 4. UPDATE HISTORY & GRAPH
+    // 4. UPDATE GRAPH EDGE AND TIMESTAMP
+    merchant_to_users[merchant_id].insert(user_id);
+    merchant_last_active[merchant_id] = timestamp; // Record the activity!
     auto list_iterator = user_history[user_id];
     list_iterator->second.push_back({merchant_id, lat, lon, timestamp});
     if (list_iterator->second.size() > 5) {
@@ -322,17 +324,40 @@ std::vector<std::string> parseInput(const std::string& input) {
     return tokens;
 }
 
-// --- BACKGROUND GRAPH ANALYZER (V2: Ratio-Based Heuristics) ---
+// --- BACKGROUND GRAPH ANALYZER (With Archival Eviction) ---
 void Database::runGraphAnalysis() {
     std::unique_lock<std::shared_mutex> lock(db_mutex);
     int new_fraud_rings_found = 0;
+    
+    // Create an iterator loop so we can safely delete items from the map while looping
+    for (auto it = merchant_to_users.begin(); it != merchant_to_users.end(); ) {
+        const std::string& merchant_id = it->first;
+        const std::unordered_set<std::string>& users = it->second;
 
-    for (const auto& pair : merchant_to_users) {
-        const std::string& merchant_id = pair.first;
-        const std::unordered_set<std::string>& users = pair.second;
+        // --- NEW: COARSE-GRAINED EVICTION (30 DAYS) ---
+        uint64_t current_time = std::time(nullptr);
+        uint64_t last_active = merchant_last_active[merchant_id];
+        
+        // If the merchant hasn't been active in 30 days (2,592,000 seconds)
+        if (current_time - last_active > 2592000) {
+            // Write them to the cold-storage Archival Log on SSD
+            std::ofstream archive_file("litedb_archive.log", std::ios::app);
+            archive_file << "ARCHIVED_MERCHANT " << merchant_id << " TOTAL_USERS:" << users.size() << "\n";
+            archive_file.close();
 
-        if (allowlist.find(merchant_id) != allowlist.end()) continue;
-        if (blacklist.mightContain(merchant_id)) continue;
+            // Delete their Activity Tracker
+            merchant_last_active.erase(merchant_id);
+            
+            // Delete the Graph Node from RAM, and advance the iterator!
+            it = merchant_to_users.erase(it);
+            continue; 
+        }
+
+        // --- THE V2 AI LOGIC (HARVESTERS) ---
+        if (allowlist.find(merchant_id) != allowlist.end() || blacklist.mightContain(merchant_id)) {
+            ++it;
+            continue;
+        }
 
         double total_users = users.size();
         double compromised_user_count = 0;
@@ -343,8 +368,6 @@ void Database::runGraphAnalysis() {
             }
         }
 
-        
-        // --- THE V2 AI LOGIC (HARVESTERS) ---
         if (total_users >= 3) {
             double fraud_ratio = compromised_user_count / total_users;
             if (fraud_ratio > 0.30) {
@@ -354,10 +377,11 @@ void Database::runGraphAnalysis() {
                 std::string alert_msg = "[ALERT] Fraud Ring Detected: " + merchant_id + "\r\n";
                 for (int fd : active_sockets) send(fd, alert_msg.c_str(), alert_msg.length(), 0);
                 new_fraud_rings_found++;
-                continue; // Skip the next check if already blacklisted
             }
         }
         
+        // Advance iterator safely
+        ++it;
     }
 
     if (new_fraud_rings_found > 0) {

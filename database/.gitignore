@@ -15,3 +15,4 @@ litedb_server
 *.aof
 
 *.rdb
+litedb_archive.log

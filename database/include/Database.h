@@ -52,6 +52,8 @@ private:
     std::unordered_map<std::string, int> compromised_cards;
     // NEW: The Crime Scene Evidence Box (MerchantID -> List of Hacker Transactions)
     std::unordered_map<std::string, std::vector<Transaction>> crime_scenes;
+    // NEW: Tracks the exact timestamp a merchant last processed a swipe
+    std::unordered_map<std::string, uint64_t> merchant_last_active;
     // NEW: Tracks how many times a hacker tried to cash-out at this merchant
     std::unordered_map<std::string, int> cashout_attempts;
 
