@@ -170,7 +170,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
           <h2 className="text-[10px] font-medium tracking-[0.12em] text-zinc-500 uppercase">Live Feed</h2>
           <span className="font-mono text-[9px] text-zinc-700 tabular-nums">{txnList.length} events</span>
         </div>
-        <div className="flex gap-[3px] mb-3 px-0.5">
+        <div className="flex gap-[3px] mb-4 px-0.5">
           {USER_COLORS.map((c, i) => (
             <span key={i} className="flex-1 h-0.5 rounded-full" style={{ backgroundColor: c, opacity: 0.5 }} />
           ))}
@@ -184,7 +184,11 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
               <button
                 key={`${data.userId}-${data.timestamp}`}
                 onClick={() => setInspectedTxn(txn)}
-                className={`w-full text-left p-3.5 rounded-xl border transition-all duration-150 ${isSelected ? 'bg-zinc-900/80' : 'bg-[#09090b] hover:bg-zinc-900/50'}`}
+                className={`group w-full text-left p-3.5 rounded-2xl border backdrop-blur-sm transition-all duration-300 ${
+                  isSelected
+                    ? 'bg-zinc-900/70 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]'
+                    : 'bg-zinc-950/60 hover:bg-zinc-900/40 hover:border-zinc-700'
+                }`}
                 style={{ borderColor: isSelected ? color : 'rgba(255,255,255,0.06)' }}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -207,16 +211,16 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
         
         {/* MAP CONTAINER (60% height) */}
         <div className="flex-grow flex flex-col min-h-[350px]">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2.5">
             <h2 className="text-[10px] font-medium tracking-[0.12em] text-zinc-500 uppercase">Geospatial Vector Map</h2>
-            <div className="flex gap-2">
-              <button onClick={() => setZoom(z => Math.min(z * 1.5, 200))} className="px-2 py-0.5 rounded bg-zinc-900 text-[10px] text-zinc-400 hover:text-white border border-white/5">+</button>
-              <button onClick={() => setZoom(z => Math.max(z / 1.5, 1))} className="px-2 py-0.5 rounded bg-zinc-900 text-[10px] text-zinc-400 hover:text-white border border-white/5">−</button>
-              <button onClick={() => { setZoom(1); setCenter([0, 20]) }} className="px-2 py-0.5 rounded bg-zinc-900 text-[10px] text-zinc-400 hover:text-white border border-white/5">Reset</button>
+            <div className="flex gap-1.5">
+              <button onClick={() => setZoom(z => Math.min(z * 1.5, 200))} className="px-2.5 py-0.5 rounded-full bg-white/[0.03] text-[10px] text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06] transition-all duration-200">+</button>
+              <button onClick={() => setZoom(z => Math.max(z / 1.5, 1))} className="px-2.5 py-0.5 rounded-full bg-white/[0.03] text-[10px] text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06] transition-all duration-200">−</button>
+              <button onClick={() => { setZoom(1); setCenter([0, 20]) }} className="px-2.5 py-0.5 rounded-full bg-white/[0.03] text-[10px] text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06] transition-all duration-200">Reset</button>
             </div>
           </div>
 
-          <div className="flex-1 bg-[#000000] rounded-2xl border border-white/10 overflow-hidden relative min-h-[400px]">
+          <div className="flex-1 bg-zinc-950/60 backdrop-blur-sm rounded-2xl border border-white/[0.08] hover:border-zinc-700 transition-colors duration-500 overflow-hidden relative min-h-[400px]">
             <ComposableMap projection="geoMercator" projectionConfig={{ scale: 130 }} style={{ width: '100%', height: '100%' }}>
               <ZoomableGroup zoom={zoom} center={center} maxZoom={200} onMoveEnd={({ zoom: z, coordinates }) => { setZoom(z); setCenter(coordinates); }}>
                 
@@ -268,7 +272,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
         <div className="grid grid-cols-2 gap-4 h-[200px] shrink-0">
           
           {/* CHART 1: TOTAL LATENCY TREND */}
-          <div className="bg-[#000000] rounded-2xl border border-white/10 p-4 flex flex-col justify-between">
+          <div className="bg-zinc-950/60 backdrop-blur-sm rounded-2xl border border-white/[0.08] hover:border-zinc-700 transition-colors duration-500 p-4 flex flex-col justify-between">
             <p className="text-[9px] tracking-widest text-zinc-500 font-bold uppercase mb-2">REAL-TIME C++ LATENCY (T_TOTAL)</p>
             <div className="flex-1 w-full" style={{ minHeight: '120px' }}> {/* <--- FIX: Forced minHeight */}
               {lineChartData.length === 0 ? (
@@ -287,7 +291,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
           </div>
 
           {/* CHART 2: MEMORY VS DISK COMPARISON */}
-          <div className="bg-[#000000] rounded-2xl border border-white/10 p-4 flex flex-col justify-between">
+          <div className="bg-zinc-950/60 backdrop-blur-sm rounded-2xl border border-white/[0.08] hover:border-zinc-700 transition-colors duration-500 p-4 flex flex-col justify-between">
             <p className="text-[9px] tracking-widest text-zinc-500 font-bold uppercase mb-2">COMPUTATION (RAM) VS STORAGE (SSD)</p>
             <div className="flex-1 w-full" style={{ minHeight: '120px' }}> {/* <--- FIX: Forced minHeight */}
               {txnList.length === 0 ? (
@@ -316,7 +320,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
       {/* ════ COLUMN 3: INSPECTOR PANE ════ */}
       <div className="lg:col-span-3 flex flex-col h-full">
         <h2 className="text-[10px] font-medium tracking-[0.12em] text-zinc-500 uppercase mb-4">Inspector Pane</h2>
-        <div className="flex-1 bg-[#000000] rounded-2xl border border-white/10 overflow-y-auto">
+        <div className="flex-1 bg-zinc-950/60 backdrop-blur-sm rounded-2xl border border-white/[0.08] hover:border-zinc-700 transition-colors duration-500 overflow-y-auto">
           {!inspectedTxn ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-6 gap-3">
               <div className="h-px w-12 bg-zinc-800" />
@@ -331,14 +335,14 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
                   <StatusPill status={d.status} />
                 </div>
                 {d.reason && (
-                  <div className="mt-2 rounded-lg bg-red-950/25 border border-red-900/40 p-3">
+                  <div className="mt-2 rounded-xl bg-red-950/20 backdrop-blur-sm border border-red-900/30 p-3">
                     <p className="text-[10px] text-red-400/90 leading-relaxed font-mono">{d.reason}</p>
                   </div>
                 )}
               </div>
               <div>
                 <p className="text-[9px] tracking-[0.14em] text-zinc-600 uppercase mb-2">Payload Data</p>
-                <div className="space-y-1 bg-zinc-950/50 rounded-lg border border-white/5 p-3">
+                <div className="space-y-1 bg-white/[0.02] backdrop-blur-sm rounded-xl border border-white/[0.06] p-3.5">
                   <p className="font-mono text-[10px] text-zinc-300 break-all">{d.userId}</p>
                   <p className="font-mono text-[10px] text-zinc-500 mt-1">{d.merchantId}</p>
                   <p className="font-mono text-[9px] text-zinc-600 mt-2">LAT: {d.lat?.toFixed(4)} &nbsp; LON: {d.lon?.toFixed(4)}</p>
@@ -346,7 +350,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
               </div>
               <div>
                 <p className="text-[9px] tracking-[0.14em] text-zinc-600 uppercase mb-2">C++ Engine Profiling</p>
-                <div className="bg-zinc-950/50 rounded-lg border border-white/5 px-4">
+                <div className="bg-white/[0.02] backdrop-blur-sm rounded-xl border border-white/[0.06] px-4">
                   <MonoRow label="T_TOTAL" value={d.t_total} />
                   <MonoRow label="T_LOCK" value={d.t_lock} />
                   <MonoRow label="T_BLOOM" value={d.t_bloom} />
@@ -356,7 +360,7 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
               </div>
               <div>
                 <p className="text-[9px] tracking-[0.14em] text-zinc-600 uppercase mb-3">Memory vs Disk I/O</p>
-                <div className="bg-zinc-950/50 rounded-lg border border-white/5 p-4 space-y-3">
+                <div className="bg-white/[0.02] backdrop-blur-sm rounded-xl border border-white/[0.06] p-4 space-y-3">
                   <SpeedBar label="RAM (Bloom + Math)" value={memTime} max={maxTime} color="#38bdf8" />
                   <SpeedBar label="SSD (AOF Write)" value={diskTime} max={maxTime} color="#fbbf24" />
                 </div>

@@ -82,7 +82,7 @@ function ThreatMap({ crimeScenes = [] }) {
   const [center, setCenter] = useState([0, 20])
 
   return (
-    <div className="w-full h-full min-h-[300px] relative rounded-xl overflow-hidden bg-black border border-white/5">
+    <div className="w-full h-full min-h-[300px] relative rounded-2xl overflow-hidden bg-black/40 backdrop-blur-sm border border-white/[0.06]">
       <ComposableMap projection="geoMercator" projectionConfig={{ scale: 130 }} style={{ width: '100%', height: '100%' }}>
         <ZoomableGroup zoom={zoom} center={center} maxZoom={200} onMoveEnd={({ zoom: z, coordinates }) => { setZoom(z); setCenter(coordinates); }}>
           <MemoizedWorld />
@@ -154,11 +154,13 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
                 <button
                   key={merchantId}
                   onClick={() => setActiveMerchant(merchantId)}
-                  className="w-full text-left p-4 rounded-xl border transition-all duration-300 focus:outline-none"
+                  className={`group w-full text-left p-4 rounded-2xl border backdrop-blur-sm transition-all duration-300 focus:outline-none ${
+                    isActive
+                      ? 'bg-red-950/20 shadow-[0_0_20px_rgba(239,68,68,0.08)]'
+                      : 'bg-zinc-950/60 hover:bg-zinc-900/40 hover:border-zinc-700'
+                  }`}
                   style={{
-                    backgroundColor: isActive ? '#1a0505' : '#09090b',
-                    borderColor: isActive ? '#ef444450' : 'rgba(255,255,255,0.06)',
-                    boxShadow: isActive ? '0 0 15px rgba(239, 68, 68, 0.1)' : 'none',
+                    borderColor: isActive ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.06)',
                   }}
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -175,40 +177,40 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
       {/* ════ MAIN INTEL PANEL ════ */}
       <div className="lg:col-span-9 flex flex-col h-full overflow-y-auto custom-scrollbar pr-2">
         {loading ? (
-           <div className="bg-[#000000] border border-white/10 rounded-2xl h-[400px] flex items-center justify-center text-[10px] font-mono text-zinc-500 animate-pulse">
+           <div className="bg-zinc-950/60 backdrop-blur-sm border border-white/[0.08] rounded-2xl h-[400px] flex items-center justify-center text-[10px] font-mono text-zinc-500 animate-pulse">
             ANALYZING THREAT VECTORS...
           </div>
         ) : (
           <div className="flex flex-col gap-6">
             
             {/* GLOBAL TARGET HEADER */}
-            <div className="bg-[#000000] border border-white/10 rounded-2xl p-6">
+            <div className="bg-zinc-950/60 backdrop-blur-sm border border-white/[0.08] hover:border-zinc-700 transition-colors duration-500 rounded-2xl p-6">
               <h3 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-1">// SYNDICATE TARGET ID</h3>
               <p className="font-mono text-2xl text-white">{activeMerchant}</p>
             </div>
 
             {/* DYNAMIC MODULE A: THE HARVESTER GRAPH */}
             {isHarvester && (
-              <div className="bg-[#000000] border border-amber-900/30 rounded-2xl p-6 flex flex-col lg:flex-row gap-8">
+              <div className="bg-zinc-950/60 backdrop-blur-sm border border-amber-900/20 hover:border-amber-800/40 transition-colors duration-500 rounded-2xl p-6 flex flex-col lg:flex-row gap-8">
                 {/* Left: The Graph */}
-                <div className="flex-1 min-h-[300px] bg-black rounded-xl border border-white/5 relative overflow-hidden">
+                <div className="flex-1 min-h-[300px] bg-black/40 backdrop-blur-sm rounded-2xl border border-white/[0.06] relative overflow-hidden">
                   <div className="absolute top-4 left-4 z-10">
-                    <h3 className="font-mono text-[10px] text-amber-500 uppercase tracking-widest bg-black/80 px-2 py-1 rounded border border-amber-900/50">TYPE 1: DATA HARVESTER</h3>
+                    <h3 className="font-mono text-[10px] text-amber-500 uppercase tracking-widest bg-black/80 backdrop-blur-sm px-2.5 py-1 rounded-full border border-amber-900/40">TYPE 1: DATA HARVESTER</h3>
                   </div>
                   <SyndicateGraph data={intelData} />
                 </div>
                 {/* Right: The Stats & Data */}
                 <div className="w-full lg:w-1/3 flex flex-col gap-4">
-                  <div className="bg-zinc-950/50 border border-white/5 rounded-xl p-4">
-                    <span className="font-mono text-[9px] text-zinc-500">EXPOSED CARDS</span>
+                  <div className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.06] hover:border-zinc-700 transition-colors duration-500 rounded-2xl p-4">
+                    <span className="font-mono text-[9px] text-zinc-500 tracking-widest">EXPOSED CARDS</span>
                     <p className="font-mono text-2xl text-white mt-1">{intelData.totalUsers}</p>
                   </div>
-                  <div className="bg-zinc-950/50 border border-amber-900/20 rounded-xl p-4">
-                    <span className="font-mono text-[9px] text-amber-500">COMPROMISED ORIGINS</span>
+                  <div className="bg-amber-950/10 backdrop-blur-sm border border-amber-900/20 hover:border-amber-800/40 transition-colors duration-500 rounded-2xl p-4">
+                    <span className="font-mono text-[9px] text-amber-500 tracking-widest">COMPROMISED ORIGINS</span>
                     <p className="font-mono text-2xl text-amber-400 font-bold mt-1">{intelData.compromisedCount}</p>
                   </div>
-                  <div className="flex-1 bg-zinc-950/50 border border-white/5 rounded-xl p-4 overflow-y-auto">
-                    <span className="font-mono text-[9px] text-zinc-500 block mb-3">COMPROMISED TOKENS</span>
+                  <div className="flex-1 bg-white/[0.02] backdrop-blur-sm border border-white/[0.06] rounded-2xl p-4 overflow-y-auto">
+                    <span className="font-mono text-[9px] text-zinc-500 tracking-widest block mb-3">COMPROMISED TOKENS</span>
                     <ul className="space-y-2">
                       {intelData.compromisedUsers.map((t) => (
                         <li key={t} className="font-mono text-[10px] text-zinc-400 break-all">{t}</li>
@@ -221,25 +223,25 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
 
             {/* DYNAMIC MODULE B: THE CASH-OUT MAP */}
             {isCashOut && (
-              <div className="bg-[#000000] border border-red-900/30 rounded-2xl p-6 flex flex-col lg:flex-row gap-8">
+              <div className="bg-zinc-950/60 backdrop-blur-sm border border-red-900/20 hover:border-red-800/40 transition-colors duration-500 rounded-2xl p-6 flex flex-col lg:flex-row gap-8">
                 {/* Left: The Threat Map */}
                 <div className="flex-1 min-h-[350px] relative">
                   <div className="absolute top-4 left-4 z-10">
-                    <h3 className="font-mono text-[10px] text-red-500 uppercase tracking-widest bg-black/80 px-2 py-1 rounded border border-red-900/50">TYPE 2: CASH-OUT FRONT</h3>
+                    <h3 className="font-mono text-[10px] text-red-500 uppercase tracking-widest bg-black/80 backdrop-blur-sm px-2.5 py-1 rounded-full border border-red-900/40">TYPE 2: CASH-OUT FRONT</h3>
                   </div>
                   <ThreatMap crimeScenes={crimeScenes} />
                 </div>
                 {/* Right: The Crime Scene Ledger */}
                 <div className="w-full lg:w-1/3 flex flex-col gap-4">
-                  <div className="bg-zinc-950/50 border border-red-900/20 rounded-xl p-4">
-                    <span className="font-mono text-[9px] text-red-500">ATTACK VECTORS DETECTED</span>
+                  <div className="bg-red-950/10 backdrop-blur-sm border border-red-900/20 hover:border-red-800/40 transition-colors duration-500 rounded-2xl p-4">
+                    <span className="font-mono text-[9px] text-red-500 tracking-widest">ATTACK VECTORS DETECTED</span>
                     <p className="font-mono text-2xl text-red-400 font-bold mt-1">{crimeScenes.length}</p>
                   </div>
-                  <div className="flex-1 bg-zinc-950/50 border border-white/5 rounded-xl p-4 overflow-y-auto">
-                    <span className="font-mono text-[9px] text-zinc-500 block mb-3">CRIME SCENE LEDGER (GPS)</span>
+                  <div className="flex-1 bg-white/[0.02] backdrop-blur-sm border border-white/[0.06] rounded-2xl p-4 overflow-y-auto">
+                    <span className="font-mono text-[9px] text-zinc-500 tracking-widest block mb-3">CRIME SCENE LEDGER (GPS)</span>
                     <ul className="space-y-3">
                       {crimeScenes.map((scene, i) => (
-                        <li key={i} className="font-mono text-[10px] text-zinc-400 border-l-2 border-red-500 pl-3">
+                        <li key={i} className="font-mono text-[10px] text-zinc-400 border-l-2 border-red-500/60 pl-3">
                           <span className="text-zinc-300 block mb-1">Time: {new Date(scene.timestamp * 1000).toLocaleTimeString()}</span>
                           <span className="opacity-70">Lat: {scene.lat.toFixed(4)}</span><br/>
                           <span className="opacity-70">Lon: {scene.lon.toFixed(4)}</span>
