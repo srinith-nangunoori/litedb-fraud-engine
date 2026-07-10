@@ -91,6 +91,11 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
   const [velocityPaths, setVelocityPaths] = useState([])
   const fetchedUsersRef = useRef(new Set())
 
+  // NEW: Force Recharts to wait until the DOM is 100% stable!
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   // Deduplicate live stream
   const txnList = useMemo(() => {
     const seen = new Set()
@@ -274,18 +279,21 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
           {/* CHART 1: TOTAL LATENCY TREND */}
           <div className="bg-zinc-950/60 backdrop-blur-sm rounded-2xl border border-white/[0.08] hover:border-zinc-700 transition-colors duration-500 p-4 flex flex-col justify-between">
             <p className="text-[9px] tracking-widest text-zinc-500 font-bold uppercase mb-2">REAL-TIME C++ LATENCY (T_TOTAL)</p>
-            <div className="flex-1 w-full" style={{ minHeight: '120px' }}> {/* <--- FIX: Forced minHeight */}
+            <div className="flex-1 w-full" style={{ minHeight: '120px' }}>
               {lineChartData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-xs text-zinc-700">Awaiting stream...</div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={lineChartData}>
-                    <XAxis dataKey="name" hide={true} />
-                    <YAxis hide={true} domain={['auto', 'auto']} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#27272a', strokeWidth: 1 }} />
-                    <RechartsLine type="monotone" dataKey="t_total" name="Total Latency" stroke="#ffffff" strokeWidth={1} dot={false} animationDuration={700} />
-                  </LineChart>
-                </ResponsiveContainer>
+                // FIX: Only render Recharts after mounting is complete!
+                isMounted && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={lineChartData}>
+                      <XAxis dataKey="name" hide={true} />
+                      <YAxis hide={true} domain={['auto', 'auto']} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#27272a', strokeWidth: 1 }} />
+                      <RechartsLine type="monotone" dataKey="t_total" name="Total Latency" stroke="#ffffff" strokeWidth={1} dot={false} animationDuration={700} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )
               )}
             </div>
           </div>
@@ -293,22 +301,25 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
           {/* CHART 2: MEMORY VS DISK COMPARISON */}
           <div className="bg-zinc-950/60 backdrop-blur-sm rounded-2xl border border-white/[0.08] hover:border-zinc-700 transition-colors duration-500 p-4 flex flex-col justify-between">
             <p className="text-[9px] tracking-widest text-zinc-500 font-bold uppercase mb-2">COMPUTATION (RAM) VS STORAGE (SSD)</p>
-            <div className="flex-1 w-full" style={{ minHeight: '120px' }}> {/* <--- FIX: Forced minHeight */}
+            <div className="flex-1 w-full" style={{ minHeight: '120px' }}>
               {txnList.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-xs text-zinc-700">Awaiting telemetry...</div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={barChartData} barSize={28}>
-                    <XAxis dataKey="name" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis hide={true} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'transparent' }} />
-                    <Bar dataKey="value" name="Avg Latency" radius={[4, 4, 0, 0]} animationDuration={700}>
-                      {barChartData.map((entry, index) => (
-                        <Cell key={`bar-cell-${index}`} fill={index === 0 ? '#38bdf8' : '#fbbf24'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                // FIX: Only render Recharts after mounting is complete!
+                isMounted && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={barChartData} barSize={28}>
+                      <XAxis dataKey="name" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis hide={true} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ fill: 'transparent' }} />
+                      <Bar dataKey="value" name="Avg Latency" radius={[4, 4, 0, 0]} animationDuration={700}>
+                        {barChartData.map((entry, index) => (
+                          <Cell key={`bar-cell-${index}`} fill={index === 0 ? '#38bdf8' : '#fbbf24'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )
               )}
             </div>
           </div>

@@ -15,6 +15,10 @@ const SAFE_R = 4
 // COMPONENT 1: THE BIPARTITE NODE GRAPH (Harvester Module)
 // ─────────────────────────────────────────────────────────────────────────────
 function SyndicateGraph({ data }) {
+
+  // SAFETY CHECK: Prevent React Black Screen Crash!
+  if (!data || !data.compromisedUsers) return null;
+
   const { totalUsers, compromisedCount, compromisedUsers } = data
   const safeCount = Math.max(totalUsers - compromisedCount, 0)
 
@@ -137,6 +141,7 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
 
   const isHarvester = intelData && intelData.compromisedCount > 0;
   const isCashOut = crimeScenes && crimeScenes.length > 0;
+  const isArchived = !loading && !isHarvester && !isCashOut;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-120px)] min-h-[700px]">
@@ -240,16 +245,36 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
                   <div className="flex-1 bg-white/[0.02] backdrop-blur-sm border border-white/[0.06] rounded-2xl p-4 overflow-y-auto">
                     <span className="font-mono text-[9px] text-zinc-500 tracking-widest block mb-3">CRIME SCENE LEDGER (GPS)</span>
                     <ul className="space-y-3">
-                      {crimeScenes.map((scene, i) => (
-                        <li key={i} className="font-mono text-[10px] text-zinc-400 border-l-2 border-red-500/60 pl-3">
-                          <span className="text-zinc-300 block mb-1">Time: {new Date(scene.timestamp * 1000).toLocaleTimeString()}</span>
-                          <span className="opacity-70">Lat: {scene.lat.toFixed(4)}</span><br/>
-                          <span className="opacity-70">Lon: {scene.lon.toFixed(4)}</span>
-                        </li>
-                      ))}
+                      {crimeScenes.map((scene, i) => {
+                        // FIX: Safely check if C++ evicted the data to SSD (returning null/NaN)
+                        if (!scene || isNaN(scene.lat) || isNaN(scene.lon)) {
+                          return (
+                            <li key={i} className="font-mono text-[10px] text-zinc-500 border-l-2 border-zinc-700 pl-3">
+                                <span className="opacity-60 block">Data Evicted to SSD (Archival Log)</span>
+                            </li>
+                          );
+                        }
+                        
+                        return (
+                          <li key={i} className="font-mono text-[10px] text-zinc-400 border-l-2 border-red-500/60 pl-3">
+                            <span className="text-zinc-300 block mb-1">Time: {new Date(scene.timestamp * 1000).toLocaleTimeString()}</span>
+                            <span className="opacity-70">Lat: {scene.lat.toFixed(4)}</span><br/>
+                            <span className="opacity-70">Lon: {scene.lon.toFixed(4)}</span>
+                          </li>
+                        )
+                      })}
                     </ul>
                   </div>
                 </div>
+              </div>
+            )}
+            {/* PANEL C: ARCHIVED (Only shows if evicted to SSD) */}
+            {isArchived && (
+              <div className="col-span-2 bg-[#000000] border border-white/10 rounded-2xl flex flex-col items-center justify-center p-12 text-center">
+                <h3 className="font-mono text-[14px] text-zinc-400 uppercase tracking-widest mb-2">DATA EVICTED TO COLD STORAGE</h3>
+                <p className="text-[11px] font-mono text-zinc-600 max-w-md">
+                  This syndicate was successfully mitigated. All associated graph nodes and geospatial threat markers have been flushed from C++ RAM to the SSD Archival Log to maintain sub-millisecond system performance.
+                </p>
               </div>
             )}
 
