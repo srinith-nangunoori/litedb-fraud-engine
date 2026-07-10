@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ComposableMap, Geographies, Geography, Marker, Line, ZoomableGroup } from 'react-simple-maps'
 import { ResponsiveContainer, LineChart, Line as RechartsLine, XAxis, YAxis, Tooltip, BarChart, Bar, Cell } from 'recharts'
+import InfoDrawer, { InfoDrawerTrigger } from './InfoDrawer'
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
 const API_BASE = 'http://localhost:5001'
@@ -91,6 +92,9 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
   const [velocityPaths, setVelocityPaths] = useState([])
   const fetchedUsersRef = useRef(new Set())
 
+  // NEW: Info Drawer open/close state
+  const [infoOpen, setInfoOpen] = useState(false)
+
   // NEW: Force Recharts to wait until the DOM is 100% stable!
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
@@ -167,7 +171,10 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
   const maxTime = Math.max(memTime, diskTime, 1)
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-120px)] min-h-[700px]">
+    <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-120px)] min-h-[700px]">
+
+      {/* ════ INFO DRAWER PANEL ════ */}
+      <InfoDrawer open={infoOpen} onClose={() => setInfoOpen(false)} type="live" />
 
       {/* ════ COLUMN 1: LIVE FEED ════ */}
       <div className="lg:col-span-3 flex flex-col h-full overflow-hidden">
@@ -380,6 +387,9 @@ export default function LiveOperations({ transactions, inspectedTxn, setInspecte
           )}
         </div>
       </div>
+      {/* ════ THE NEW FLOATING BUTTON & DRAWER ════ */}
+      <InfoDrawerTrigger onClick={() => setInfoOpen(true)} />
+      <InfoDrawer open={infoOpen} onClose={() => setInfoOpen(false)} type="live" />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps'
+import InfoDrawer, { InfoDrawerTrigger } from './InfoDrawer'
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
 const API_BASE = 'http://localhost:5001'
@@ -113,6 +114,9 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
   const [crimeScenes, setCrimeScenes] = useState([])
   const [loading, setLoading] = useState(false)
 
+  // NEW: Info Drawer open/close state
+  const [infoOpen, setInfoOpen] = useState(false)
+
   useEffect(() => {
     if (!activeMerchant && blacklistedMerchants.length > 0) {
       setActiveMerchant(blacklistedMerchants[0])
@@ -144,7 +148,10 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
   const isArchived = !loading && !isHarvester && !isCashOut;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-120px)] min-h-[700px]">
+    <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-120px)] min-h-[700px]">
+
+      {/* ════ INFO DRAWER PANEL ════ */}
+      <InfoDrawer open={infoOpen} onClose={() => setInfoOpen(false)} type="syndicate" />
       
       {/* ════ SIDEBAR ════ */}
       <div className="lg:col-span-3 flex flex-col h-full overflow-hidden">
@@ -190,7 +197,7 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
             
             {/* GLOBAL TARGET HEADER */}
             <div className="bg-zinc-950/60 backdrop-blur-sm border border-white/[0.08] hover:border-zinc-700 transition-colors duration-500 rounded-2xl p-6">
-              <h3 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-1">// SYNDICATE TARGET ID</h3>
+              <h3 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-1">SYNDICATE TARGET ID</h3>
               <p className="font-mono text-2xl text-white">{activeMerchant}</p>
             </div>
 
@@ -281,7 +288,9 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
           </div>
         )}
       </div>
-
+      {/* ════ THE NEW FLOATING BUTTON & DRAWER ════ */}
+      <InfoDrawerTrigger onClick={() => setInfoOpen(true)} />
+      <InfoDrawer open={infoOpen} onClose={() => setInfoOpen(false)} type="syndicate" />
     </div>
   )
 }
