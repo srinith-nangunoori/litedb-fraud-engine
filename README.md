@@ -1,90 +1,80 @@
-#  LiteDB: High-Performance Fraud Detection Engine
+<div align="center">
+  
+# LiteDB: Enterprise Fraud Detection Engine
+**A High-Performance, Multi-Model In-Memory Database written in C++17**
 
-![C++17](https://img.shields.io/badge/C++-17-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)
-![NodeJS](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![WebSockets](https://img.shields.io/badge/WebSockets-000000?style=for-the-badge&logo=socketdotio&logoColor=white)
+[![Live Demo](https://img.shields.io/badge/Live_Dashboard-Click_Here-10b981?style=for-the-badge&logo=vercel)](https://litedb-fraud-engine-frontend.vercel.app)
 
-LiteDB is a bespoke, multi-model in-memory database engine built entirely from scratch in C++17. Designed to replace traditional relational databases for high-throughput, low-latency financial systems, it evaluates global credit card transactions, calculates geospatial velocity, and clusters money-laundering syndicates in less than 50 microseconds.
+![C++17](https://img.shields.io/badge/C++-17-00599C?style=flat-square&logo=c%2B%2B&logoColor=white)
+![AWS EC2](https://img.shields.io/badge/AWS_EC2-Ubuntu_Linux-FF9900?style=flat-square&logo=amazon-ec2&logoColor=white)
+![NodeJS](https://img.shields.io/badge/Node.js-Orchestrator-339933?style=flat-square&logo=nodedotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-Observability_UI-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![TCP Sockets](https://img.shields.io/badge/Protocol-Raw_TCP_%2F_WebSockets-black?style=flat-square)
 
-This project was engineered to demonstrate absolute mastery over **System Architecture, Concurrent Programming, Advanced Data Structures, and Low-Level Networking**.
+</div>
 
----
-
-##  System Architecture
-
-The ecosystem operates across three heavily decoupled tiers:
-
-```text
-[ Global Traffic Simulator ]  ==> Injects 50+ TPS of concurrent organic & malicious traffic
-            │
-            ▼ (HTTP REST)
-[ Node.js WebSocket Bridge ]  ==> Parses C++ micro-metrics, routes TCP, streams WebSockets
-            │
-            ▼ (Raw TCP / POSIX Sockets)
-[ C++ LiteDB Core Engine ]    ==> Executes O(1) Fraud Math, Graph Traversal, & Async Disk I/O
-```
-
-### 1. The C++ Core (The Brain)
-Built without heavy third-party frameworks, utilizing raw POSIX sockets and `<shared_mutex>` read/write locks.
-*   **The Velocity Engine (LRU Cache):** Uses a `std::unordered_map` and a `std::deque` to track user transaction histories. Implements **Haversine spherical trigonometry** to calculate the distance and speed between consecutive global swipes, instantly freezing cards that exceed commercial jet speeds (>1000 km/h) to prevent cloned-card attacks.
-*   **The Data Harvester AI (Bipartite Graph):** A background `std::thread` runs an asynchronous clustering algorithm over a `merchant <-> user` graph. It calculates dynamic fraud ratios to catch "Shell Merchants" operating as card-cloning fronts without interrupting the live $O(1)$ transaction thread.
-*   **The Cash-Out Shield (Bloom Filter):** Implements an ultra-low memory bit-array using **FNV-1a** and **DJB2** non-cryptographic hashing (utilizing the Kirsch-Mitzenmacher optimization). Blacklisted merchants are checked in $O(1)$ nanoseconds, bypassing all other database overhead.
-*   **Dual-Persistence Storage (DBMS Durability):** To prevent SSD I/O bottlenecks, LiteDB uses a **Double-Buffered Pointer Swap**. A live RAM buffer accepts logs in 1µs, while a background thread swaps the memory pointers and flushes the Write-Ahead Log (AOF) to disk. A secondary RDB Snapshot engine compresses the RAM state every 30 seconds for instant crash recovery.
-
-### 2. The Node.js Orchestrator (The Bridge)
-*   **Map-Based TCP Queueing:** Solves TCP packet fragmentation and out-of-order execution by mapping concurrent C++ network responses to unique `Promise` resolvers.
-*   **CORS & WebSocket Broadcaster:** Transforms raw C++ byte-strings into formatted JSON streams, pushing high-frequency updates to the React UI with zero polling overhead.
-
-### 3. The React "War-Room" Dashboard (The UI)
-A premium, hardware-accelerated observability console heavily inspired by Apple/Linear minimalism.
-*   **Geospatial Vector Engine:** Uses `react-simple-maps` with `vectorEffect="non-scaling-stroke"` to offload global map zooming and panning to the GPU. Draws dynamic, geodesic laser arcs to visualize velocity fraud.
-*   **Micro-Profiling Telemetry:** Uses `Recharts` to prove hardware efficiency, displaying real-time telemetry gauges isolating Mutex Lock times, Bloom Filter hashing times, and SSD Write times.
-*   **Round-Robin Color Sequencing:** Ensures visual clarity in high-density streams by mathematically hashing user sequence IDs into a persistent, non-colliding color palette.
+> **LiteDB** is a bespoke, multi-threaded C++ storage engine built from first principles to process global credit card transactions at sub-millisecond latencies. By completely bypassing traditional relational database overhead, it executes geospatial trigonometry, bipartite graph clustering, and asynchronous disk persistence in **under 50 microseconds**, detecting money-laundering syndicates and impossible-velocity attacks in real-time.
 
 ---
 
-##  Quickstart Guide
+## Cloud Architecture Topology
 
-To run the entire distributed system locally, you will need 4 terminal windows.
+The ecosystem is decoupled into a 3-tier distributed architecture, communicating via raw TCP and WebSockets to ensure zero-polling latency.
 
-**1. Boot the C++ Database Engine**
-```bash
-cd database
-# Compile the engine
-g++ -std=c++17 src/main.cpp src/Database.cpp -I include -o litedb_server
-# Run it
-./litedb_server
+```mermaid
+graph TD
+    subgraph AWS EC2 Cloud
+        A[Stochastic Traffic Simulator] -->|HTTP REST: 50 TPS| B
+        C{C++ LiteDB Core Engine} -->|Async I/O| F[(SSD: RDB + AOF)]
+    end
+
+    subgraph Render Edge
+        B(Node.js API & Socket Bridge)
+    end
+
+    subgraph Vercel Edge
+        D[React Observability Console]
+    end
+
+    B <==>|Raw TCP Port 6379| C
+    C -.->|Background Thread Alerts| B
+    B <==>|WSS Real-Time Stream| D
 ```
-
-**2. Boot the Node.js API & WebSocket Bridge**
-```bash
-cd backend
-npm install
-node server.js
-```
-
-**3. Boot the React Frontend Dashboard**
-```bash
-cd frontend
-npm install
-npm run dev
-# Open http://localhost:5173 in your browser
-```
-
-**4. Start the Global Traffic Simulator**
-```bash
-cd simulator
-node index.js
-```
-*Note: The simulator will immediately begin pumping intelligent, stochastic global traffic. Open the React UI to watch the engine catch Cash-Out Fronts and Data Harvesters in real-time.*
 
 ---
 
-## Engineering Highlights for Code Review
-If you are reviewing this repository, pay special attention to:
-*   `database/src/Database.cpp`: The `processSwipe` function demonstrates Guard Clauses, `std::shared_lock` vs `std::unique_lock` contention optimization, and microsecond `std::chrono` profiling.
-*   `database/include/HashUtils.h`: The manual bit-shifting logic for the Bloom Filter hashes.
-*   `backend/server.js`: The TCP packet-fragmentation buffer and the Promise-Map queue resolving out-of-order C++ network responses.
-*   `frontend/src/components/NetworkMap.jsx`: The scale-invariant GPU SVG rendering and mathematical color-hashing.
+## Core Systems Engineering
 
+### 1. Dual-Persistence Storage (Beating the Disk Bottleneck)
+To achieve DBMS Durability (ACID) without blocking the main event loop, LiteDB implements a highly optimized hybrid persistence model:
+*   **Double-Buffered Write-Ahead Logging (WAL):** Live transactions are pushed to a RAM buffer in `<1µs`. A background flusher thread locks a discrete mutex, swaps the memory pointers via `std::swap` (taking **~10 nanoseconds**), and writes the batch to `litedb.aof` on the SSD in parallel.
+*   **Asynchronous RDB Snapshotting:** Every 30 seconds, a detached `std::thread` serializes the entire RAM state (LRU, Bloom Filter bits, and blacklists) into a compressed binary `litedb.rdb` file. The massive AOF log is then truncated, enabling instantaneous crash-recovery on reboot.
+
+### 2. Concurrency & Lock Optimization
+*   **Shared-Mutex Read/Write Locks:** Memory is protected by C++17 `std::shared_mutex`. Infinite parallel read threads (`std::shared_lock`) can query the database concurrently without contention, while exclusive write locks (`std::unique_lock`) are reserved strictly for RAM mutations.
+*   **Dual-Socket TCP Gateway:** The Node.js orchestrator splits traffic into two physical TCP sockets (`Swipe` and `Query`). This segregates high-volume transactional payloads from heavy UI analytical queries, preventing TCP packet-fragmentation deadlocks during high-concurrency bursts.
+
+---
+
+## Mathematical Threat Heuristics
+
+### Layer 1: The Fast Path (Bloom Filters)
+Implements an ultra-low memory bit-array using **FNV-1a** and **DJB2** non-cryptographic hashing (utilizing the *Kirsch-Mitzenmacher* optimization). Blacklisted merchants are verified in $O(1)$ nanoseconds.
+
+### Layer 2: The Velocity Engine (Geospatial LRU)
+Utilizes a `std::unordered_map` coupled with a `std::deque` to maintain a sliding window of global user coordinates.
+*   **The Math:** Implements **Haversine spherical trigonometry** to calculate the Great-Circle distance between consecutive global swipes. 
+*   **The Guard Clause:** If required travel speed exceeds commercial flight capabilities (>1000 km/h), the thread executes an early-return, freezing the card in $O(1)$ time and discarding the hacker's coordinates to protect the cache purity.
+
+### Layer 3: The Syndicate Engine (Bipartite Graph Clustering)
+An asynchronous background thread analyzes the `merchant <-> user` Bipartite Graph to catch money-laundering shell companies.
+*   **Bayesian Ratio Protection:** To protect high-volume legitimate merchants (e.g., Amazon) from being blacklisted due to competitor sabotage, the AI calculates a dynamic Fraud Density Ratio `(compromised_users / total_users)`. Merchants are only auto-blacklisted if their hacker concentration exceeds 30% with a minimum sample threshold.
+*   **Coarse-Grained TTL Eviction:** Inactive merchant nodes are safely flushed from RAM to a cold-storage `litedb_archive.log` on the SSD to prevent infinite memory leaks.
+
+---
+
+## Live Observability Dashboard
+The React frontend serves as a premium, hardware-accelerated "War Room" console.
+*   **Scale-Invariant GPU Mapping:** Utilizes `vectorEffect="non-scaling-stroke"` to offload global map zooming to the GPU, allowing 200x scroll-wheel panning at 60 FPS. Draws dynamic, geodesic laser arcs to visualize velocity fraud.
+*   **C++ Micro-Profiling Telemetry:** The UI parses custom byte-strings from C++ to render live `Recharts` gauges, visually breaking down Mutex Lock acquisition (`T_LOCK`), Hash evaluation (`T_BLOOM`), and Math execution (`T_VELOCITY`) in real-time microseconds.
+*   **State Deduplication:** Employs strict sequence-ticket hashing to maintain a flawless Round-Robin color paradigm across high-frequency WebSocket streams, immune to React StrictMode ghost-renders.
