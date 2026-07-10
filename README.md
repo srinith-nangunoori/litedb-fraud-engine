@@ -23,22 +23,25 @@ The ecosystem is decoupled into a 3-tier distributed architecture, communicating
 
 ```mermaid
 graph TD
-    subgraph AWS EC2 Cloud
-        A[Stochastic Traffic Simulator] -->|HTTP REST: 50 TPS| B
-        C{C++ LiteDB Core Engine} -->|Async I/O| F[(SSD: RDB + AOF)]
+    subgraph AWS["AWS EC2 Cloud"]
+        A[Stochastic Traffic Simulator]
+        C{C++ LiteDB Core Engine}
+        F[(SSD: RDB + AOF)]
     end
 
-    subgraph Render Edge
+    subgraph Render["Render Edge"]
         B(Node.js API & Socket Bridge)
     end
 
-    subgraph Vercel Edge
+    subgraph Vercel["Vercel Edge"]
         D[React Observability Console]
     end
 
+    A -->|HTTP REST: 50 TPS| B
     B <==>|Raw TCP Port 6379| C
     C -.->|Background Thread Alerts| B
     B <==>|WSS Real-Time Stream| D
+    C -->|Async I/O| F
 ```
 
 ---
