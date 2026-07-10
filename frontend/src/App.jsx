@@ -26,6 +26,7 @@ console.error = (...args) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:5001'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5001';
 const MAX_TRANSACTIONS = 200
 
 const NAV_ITEMS = [
@@ -97,7 +98,7 @@ export default function App() {
 
   // 1. Fetch historical syndicates on initial page load
   useEffect(() => {
-    fetch('http://localhost:5001/api/syndicates/all')
+    fetch(`${API_BASE}/api/syndicates/all`)
       .then(res => res.json())
       .then(data => {
         const validData = data.filter(m => m !== '(nil)' && m.trim() !== '');
