@@ -3,7 +3,7 @@ import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 're
 import InfoDrawer, { InfoDrawerTrigger } from './InfoDrawer'
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
-const API_BASE = 'http://localhost:5001'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5001'
 
 const GRAPH_SIZE = 300
 const CENTER = GRAPH_SIZE / 2

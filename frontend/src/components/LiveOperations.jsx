@@ -4,7 +4,7 @@ import { ResponsiveContainer, LineChart, Line as RechartsLine, XAxis, YAxis, Too
 import InfoDrawer, { InfoDrawerTrigger } from './InfoDrawer'
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
-const API_BASE = 'http://localhost:5001'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5001'
 
 const USER_COLORS = ['#22d3ee', '#e879f9', '#fbbf24', '#818cf8', '#a78bfa']
 

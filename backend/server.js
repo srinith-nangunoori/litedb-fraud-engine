@@ -8,9 +8,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 5001;
+// Cloud-ready environment variables with localhost fallbacks
+const PORT = process.env.PORT || 5001;
+const CPP_HOST = process.env.CPP_HOST || '127.0.0.1';
 const CPP_PORT = 6379;
-const CPP_HOST = '127.0.0.1';
 
 // ─────────────────────────────────────────────────────────────
 // TCP SOCKET 1: THE FIREHOSE (For Simulator Swipes)

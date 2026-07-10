@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
-const API_URL = 'http://localhost:5001/api/swipe';
+// Cloud-ready API URL
+const API_URL = process.env.API_URL || 'http://localhost:5001/api/swipe';
 
 // ============================================================================
 // 1. GEOGRAPHY — 40+ Cities for Global Routing

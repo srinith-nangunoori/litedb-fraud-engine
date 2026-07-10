@@ -25,7 +25,7 @@ console.error = (...args) => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-const WS_URL = 'ws://localhost:5001'
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:5001'
 const MAX_TRANSACTIONS = 200
 
 const NAV_ITEMS = [
