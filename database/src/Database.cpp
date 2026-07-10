@@ -4,6 +4,7 @@
 #include <sstream>
 #include <sys/socket.h>
 #include <thread>
+#include <mutex>
 
 // --- ADVANCED BLOOM FILTER IMPLEMENTATION ---
 BloomFilter::BloomFilter(size_t expected_items, double false_positive_rate) {
