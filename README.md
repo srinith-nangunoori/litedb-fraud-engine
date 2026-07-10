@@ -87,6 +87,4 @@ If you are reviewing this repository, pay special attention to:
 *   `database/include/HashUtils.h`: The manual bit-shifting logic for the Bloom Filter hashes.
 *   `backend/server.js`: The TCP packet-fragmentation buffer and the Promise-Map queue resolving out-of-order C++ network responses.
 *   `frontend/src/components/NetworkMap.jsx`: The scale-invariant GPU SVG rendering and mathematical color-hashing.
-```
 
-***
