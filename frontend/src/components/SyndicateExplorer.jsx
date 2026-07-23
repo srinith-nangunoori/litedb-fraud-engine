@@ -253,20 +253,18 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
                     <span className="font-mono text-[9px] text-zinc-500 tracking-widest block mb-3">CRIME SCENE LEDGER (GPS)</span>
                     <ul className="space-y-3">
                       {crimeScenes.map((scene, i) => {
-                        // FIX: Safely check if C++ evicted the data to SSD (returning null/NaN)
-                        if (!scene || isNaN(scene.lat) || isNaN(scene.lon)) {
+                        if (!scene || scene.lat == null || scene.lon == null) {
                           return (
                             <li key={i} className="font-mono text-[10px] text-zinc-500 border-l-2 border-zinc-700 pl-3">
-                                <span className="opacity-60 block">Data Evicted to SSD (Archival Log)</span>
+                                <span className="opacity-60 block">Data Evicted to Cold Storage</span>
                             </li>
                           );
                         }
-                        
                         return (
                           <li key={i} className="font-mono text-[10px] text-zinc-400 border-l-2 border-red-500/60 pl-3">
                             <span className="text-zinc-300 block mb-1">Time: {new Date(scene.timestamp * 1000).toLocaleTimeString()}</span>
-                            <span className="opacity-70">Lat: {scene.lat.toFixed(4)}</span><br/>
-                            <span className="opacity-70">Lon: {scene.lon.toFixed(4)}</span>
+                            <span className="opacity-70">Lat: {Number(scene.lat).toFixed(4)}</span><br/>
+                            <span className="opacity-70">Lon: {Number(scene.lon).toFixed(4)}</span>
                           </li>
                         )
                       })}
