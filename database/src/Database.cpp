@@ -282,9 +282,9 @@ std::string Database::processSwipe(const std::string& user_id, const std::string
         user_history[user_id] = lru_list.begin();
     }
 
-    // 4. UPDATE GRAPH EDGE AND TIMESTAMP
+    // 4. UPDATE GRAPH EDGE
     merchant_to_users[merchant_id].insert(user_id);
-    merchant_last_active[merchant_id] = timestamp; // Record the activity!
+    merchant_last_active[merchant_id] = std::time(nullptr); // FIX: Use real physical OS time!
     auto list_iterator = user_history[user_id];
     list_iterator->second.push_back({merchant_id, lat, lon, timestamp});
     if (list_iterator->second.size() > 5) {
