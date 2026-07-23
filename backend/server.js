@@ -8,66 +8,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Cloud-ready environment variables with localhost fallbacks
 const PORT = process.env.PORT || 5001;
 const CPP_HOST = process.env.CPP_HOST || '127.0.0.1';
 const CPP_PORT = 6379;
 
 // ─────────────────────────────────────────────────────────────
-// TCP SOCKET 1: THE FIREHOSE (For Simulator Swipes)
-// ─────────────────────────────────────────────────────────────
-const swipeSocket = net.createConnection({ port: CPP_PORT, host: CPP_HOST }, () => {
-    console.log('[INFO] Swipe Socket connected to C++');
-});
-
-const swipeQueue = new Map();
-let swipeCounter = 0;
-let swipeBuffer = "";
-
-swipeSocket.on('data', (data) => {
-    swipeBuffer += data.toString();
-    let newlineIndex;
-    while ((newlineIndex = swipeBuffer.indexOf('\n')) !== -1) {
-        const responseLine = swipeBuffer.substring(0, newlineIndex).trim();
-        swipeBuffer = swipeBuffer.substring(newlineIndex + 1);
-
-        if (!responseLine) continue;
-
-        if (responseLine.startsWith('[ALERT]')) {
-            broadcastToUI({ type: 'ALERT', data: responseLine });
-            continue;
-        }
-
-        const oldestKey = swipeQueue.keys().next().value;
-        if (oldestKey !== undefined) {
-            const resolver = swipeQueue.get(oldestKey);
-            swipeQueue.delete(oldestKey);
-            resolver(responseLine);
-        }
-    }
-});
-
-function sendSwipeCommand(command) {
-    return new Promise((resolve) => {
-        const reqId = swipeCounter++;
-        swipeQueue.set(reqId, resolve);
-        
-        setTimeout(() => {
-            if (swipeQueue.has(reqId)) {
-                swipeQueue.delete(reqId);
-                resolve('-DECLINED Timeout');
-            }
-        }, 3000);
-
-        swipeSocket.write(command + '\n');
-    });
-}
-
-// ─────────────────────────────────────────────────────────────
-// TCP SOCKET 2: THE QUERY LINE (For React UI Data Fetches)
+// 1. THE PERSISTENT SOCKET (For UI Queries & Background Alerts)
 // ─────────────────────────────────────────────────────────────
 const querySocket = net.createConnection({ port: CPP_PORT, host: CPP_HOST }, () => {
-    console.log('[INFO] Query Socket connected to C++');
+    console.log('[INFO] Persistent Query Socket connected to C++');
 });
 
 const queryQueue = new Map();
@@ -81,7 +30,13 @@ querySocket.on('data', (data) => {
         const responseLine = queryBuffer.substring(0, newlineIndex).trim();
         queryBuffer = queryBuffer.substring(newlineIndex + 1);
 
-        if (!responseLine || responseLine.startsWith('[ALERT]')) continue;
+        if (!responseLine) continue;
+
+        // Broadcast background alerts to the UI immediately
+        if (responseLine.startsWith('[ALERT]')) {
+            broadcastToUI({ type: 'ALERT', data: responseLine });
+            continue;
+        }
 
         const oldestKey = queryQueue.keys().next().value;
         if (oldestKey !== undefined) {
@@ -103,13 +58,50 @@ function sendQueryCommand(command) {
                 resolve('(nil)');
             }
         }, 3000);
-
         querySocket.write(command + '\n');
     });
 }
 
 // ─────────────────────────────────────────────────────────────
-// WEBSOCKET & REST APIs
+// 2. THE EPHEMERAL SOCKET (Fixes the Multi-Thread Deadlock!)
+// ─────────────────────────────────────────────────────────────
+// Every swipe gets its own dedicated, short-lived socket. 
+// It is impossible for C++ threads to mix up their responses now!
+function sendSwipeCommand(command) {
+    return new Promise((resolve) => {
+        const client = net.createConnection({ port: CPP_PORT, host: CPP_HOST }, () => {
+            client.write(command + '\n');
+        });
+
+        let resolved = false;
+
+        client.on('data', (data) => {
+            if (!resolved) {
+                resolved = true;
+                resolve(data.toString().trim());
+                client.destroy(); // Close the socket immediately after getting the answer
+            }
+        });
+
+        client.on('error', () => {
+            if (!resolved) {
+                resolved = true;
+                resolve('-DECLINED API Socket Error');
+            }
+        });
+
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                resolve('-DECLINED Backend Timeout');
+                client.destroy();
+            }
+        }, 3000);
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3. WEBSOCKET & REST APIs
 // ─────────────────────────────────────────────────────────────
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -141,7 +133,7 @@ app.post('/api/swipe', async (req, res) => {
     const { userId, merchantId, lat, lon, timestamp } = req.body;
     const command = `SWIPE ${userId} ${merchantId} ${lat} ${lon} ${timestamp}`;
     
-    // USE THE SWIPE SOCKET!
+    // Uses the isolated, thread-safe socket!
     const dbResponse = await sendSwipeCommand(command);
     const parsedResult = parseMetrics(dbResponse);
 
@@ -150,7 +142,6 @@ app.post('/api/swipe', async (req, res) => {
 });
 
 app.get('/api/history/:userId', async (req, res) => {
-    // USE THE QUERY SOCKET!
     const dbResponse = await sendQueryCommand(`GET_HISTORY ${req.params.userId}`);
     if (dbResponse === '(nil)') return res.json([]);
 
@@ -163,7 +154,6 @@ app.get('/api/history/:userId', async (req, res) => {
 });
 
 app.get('/api/syndicate/:merchantId', async (req, res) => {
-    // USE THE QUERY SOCKET!
     const dbResponse = await sendQueryCommand(`GET_SYNDICATE ${req.params.merchantId}`);
     if (dbResponse === '(nil)') return res.json({ merchantId: req.params.merchantId, totalUsers: 0, compromisedCount: 0, compromisedUsers: [] });
 
@@ -182,7 +172,6 @@ app.get('/api/syndicate/:merchantId', async (req, res) => {
 });
 
 app.get('/api/syndicates/all', async (req, res) => {
-    // USE THE QUERY SOCKET!
     const dbResponse = await sendQueryCommand(`GET_ALL_SYNDICATES`);
     if (dbResponse === '(nil)') return res.json([]);
     const cleanData = dbResponse.replace('+SYNDICATES', '').trim();
@@ -190,7 +179,6 @@ app.get('/api/syndicates/all', async (req, res) => {
 });
 
 app.get('/api/crimescenes/:merchantId', async (req, res) => {
-    // USE THE QUERY SOCKET!
     const dbResponse = await sendQueryCommand(`GET_CRIME_SCENES ${req.params.merchantId}`);
     if (dbResponse === '(nil)') return res.json([]);
 

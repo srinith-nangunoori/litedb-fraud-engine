@@ -253,13 +253,22 @@ export default function SyndicateExplorer({ blacklistedMerchants }) {
                     <span className="font-mono text-[9px] text-zinc-500 tracking-widest block mb-3">CRIME SCENE LEDGER (GPS)</span>
                     <ul className="space-y-3">
                       {crimeScenes.map((scene, i) => {
-                        if (!scene || scene.lat == null || scene.lon == null) {
+                        // THE ULTIMATE SAFETY CHECK: 
+                        // Is it undefined? Is it missing properties? Is the parsing broken?
+                        if (
+                          !scene || 
+                          typeof scene.lat === 'undefined' || 
+                          typeof scene.lon === 'undefined' || 
+                          Number.isNaN(Number(scene.lat)) || 
+                          Number.isNaN(Number(scene.lon))
+                        ) {
                           return (
                             <li key={i} className="font-mono text-[10px] text-zinc-500 border-l-2 border-zinc-700 pl-3">
                                 <span className="opacity-60 block">Data Evicted to Cold Storage</span>
                             </li>
                           );
                         }
+                        
                         return (
                           <li key={i} className="font-mono text-[10px] text-zinc-400 border-l-2 border-red-500/60 pl-3">
                             <span className="text-zinc-300 block mb-1">Time: {new Date(scene.timestamp * 1000).toLocaleTimeString()}</span>

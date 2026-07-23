@@ -77,7 +77,7 @@ async function postTransaction(userId, merchantId, lat, lon, timestamp, userInde
         } else {
             console.warn(`[❌ DECLINED] User: ${shortId} -> ${merchantId} | ${result.reason}`);
             // Shred frozen cards and spawn a new one to keep the traffic alive
-            if (result.reason.includes('Frozen') || result.reason.includes('Velocity')) {
+            if (result.reason && (result.reason.includes('Frozen') || result.reason.includes('Velocity'))) {
                 activeUsers[userIndex] = spawnUser();
             }
         }
